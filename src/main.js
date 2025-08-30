@@ -11,6 +11,8 @@ let y = 0;
 let speed = tileSize;
 
 const textures = {};
+let enemies = [];
+let isAttacking = false;
 
 let touchStartX = null;
 let touchStartY = null;
@@ -88,7 +90,7 @@ function calculateTileSize() {
 }
 
 async function loadTextures() {
-  const names = ['knight', 'wall', 'door', 'finish'];
+  const names = ['knight', 'wall', 'door', 'finish', 'enemy'];
   for (const name of names) {
     textures[name] = await PIXI.Assets.load(`/img/${name}.png`);
   }
@@ -102,6 +104,24 @@ function createSprite(type, gridX, gridY) {
   sprite.y = gridY * tileSize;
   mapContainer.addChild(sprite);
   return sprite;
+}
+
+function placeFinishTile() {
+  // Find a floor tile far from the knight to place the finish
+  for (let i = dungeon.tiles.length - 1; i >= 0; i--) {
+    for (let j = dungeon.tiles[i].length - 1; j >= 0; j--) {
+      if (dungeon.tiles[i][j].type === 'floor') {
+        // Check if this position is not occupied by knight
+        const knightGridX = Math.floor(x / tileSize);
+        const knightGridY = Math.floor(y / tileSize);
+        if (!(i === knightGridX && j === knightGridY)) {
+          dungeon.tiles[i][j].type = 'finish';
+          createSprite('finish', i, j);
+          return;
+        }
+      }
+    }
+  }
 }
 
 async function startGame() {
@@ -130,10 +150,11 @@ async function startGame() {
 
   mapContainer.removeChildren();
   knight = null;
+  enemies = [];
 
   let knightPlaced = false;
-  let finishPlaced = false;
-
+  
+  // Place walls and doors
   for (let i = 0; i < dungeon.tiles.length; i++) {
     for (let j = 0; j < dungeon.tiles[i].length; j++) {
       const tile = dungeon.tiles[i][j].type;
@@ -143,6 +164,7 @@ async function startGame() {
     }
   }
 
+  // Place knight in first available floor tile
   for (let i = 0; i < dungeon.tiles.length && !knightPlaced; i++) {
     for (let j = 0; j < dungeon.tiles[i].length && !knightPlaced; j++) {
       if (dungeon.tiles[i][j].type === 'floor') {
@@ -154,15 +176,33 @@ async function startGame() {
     }
   }
 
-  for (let i = dungeon.tiles.length - 1; i >= 0 && !finishPlaced; i--) {
-    for (let j = dungeon.tiles[i].length - 1; j >= 0 && !finishPlaced; j--) {
+  // Place enemies on random floor tiles
+  const floorTiles = [];
+  for (let i = 0; i < dungeon.tiles.length; i++) {
+    for (let j = 0; j < dungeon.tiles[i].length; j++) {
       if (dungeon.tiles[i][j].type === 'floor') {
-        dungeon.tiles[i][j].type = 'finish';
-        finishPlaced = true;
-        createSprite('finish', i, j);
+        // Don't place enemy where knight is
+        if (!(i === Math.floor(x / tileSize) && j === Math.floor(y / tileSize))) {
+          floorTiles.push({ x: i, y: j });
+        }
       }
     }
   }
+
+  // Place 3-5 enemies randomly
+  const numEnemies = Math.min(Math.floor(Math.random() * 3) + 3, floorTiles.length);
+  for (let i = 0; i < numEnemies; i++) {
+    const randomIndex = Math.floor(Math.random() * floorTiles.length);
+    const tile = floorTiles.splice(randomIndex, 1)[0];
+    const enemy = {
+      x: tile.x,
+      y: tile.y,
+      sprite: createSprite('enemy', tile.x, tile.y)
+    };
+    enemies.push(enemy);
+  }
+
+  // Note: Finish tile will be placed when all enemies are defeated
 
   app.ticker.add(() => {
     if (knight) {
@@ -205,7 +245,31 @@ function triggerSingleStepMovement(direction) {
     moveY < dungeon.tiles[moveX].length
   ) {
     const tileType = dungeon.tiles[moveX][moveY].type;
-    if (
+    
+    // Check if there's an enemy at this position
+    const enemyIndex = enemies.findIndex(enemy => enemy.x === moveX && enemy.y === moveY);
+    
+    if (enemyIndex !== -1) {
+      // Combat with enemy - attack and defeat it
+      const enemy = enemies[enemyIndex];
+      mapContainer.removeChild(enemy.sprite);
+      enemies.splice(enemyIndex, 1);
+      
+      // Brief attack animation
+      isAttacking = true;
+      setTimeout(() => {
+        isAttacking = false;
+      }, 200);
+      
+      // Move to the tile where enemy was
+      x = newX;
+      y = newY;
+      
+      // Check if all enemies defeated
+      if (enemies.length === 0) {
+        placeFinishTile();
+      }
+    } else if (
       tileType === 'floor' ||
       tileType === 'door' ||
       tileType === 'finish'
@@ -226,6 +290,8 @@ function triggerSingleStepMovement(direction) {
 function resetGame() {
   knight = null;
   dungeon = null;
+  enemies = [];
+  isAttacking = false;
   keyPressed.clear();
   mapContainer.removeChildren();
   x = 0;
@@ -238,6 +304,7 @@ document.addEventListener('keyup', (e) => {
     case 'ArrowUp':
     case 'ArrowRight':
     case 'ArrowDown':
+    case 'Space':
       keyPressed.delete(e.code);
       break;
   }
@@ -263,6 +330,9 @@ document.addEventListener('keydown', (e) => {
       break;
     case 'ArrowDown':
       triggerSingleStepMovement('down');
+      break;
+    case 'Space':
+      triggerSwordAttack();
       break;
   }
   e.preventDefault();
@@ -364,6 +434,63 @@ gamepadButtons.forEach((button) => {
     bindGamepadButton(button, direction);
   }
 });
+
+// Sword attack function
+function triggerSwordAttack() {
+  if (!knight || !dungeon || isAttacking) {
+    return;
+  }
+  
+  // Brief visual indication of attack
+  isAttacking = true;
+  setTimeout(() => {
+    isAttacking = false;
+  }, 300);
+  
+  // Check all adjacent tiles for enemies
+  const knightGridX = Math.floor(x / tileSize);
+  const knightGridY = Math.floor(y / tileSize);
+  
+  const adjacentPositions = [
+    { x: knightGridX - 1, y: knightGridY }, // left
+    { x: knightGridX + 1, y: knightGridY }, // right
+    { x: knightGridX, y: knightGridY - 1 }, // up
+    { x: knightGridX, y: knightGridY + 1 }, // down
+  ];
+  
+  adjacentPositions.forEach(pos => {
+    const enemyIndex = enemies.findIndex(enemy => enemy.x === pos.x && enemy.y === pos.y);
+    if (enemyIndex !== -1) {
+      const enemy = enemies[enemyIndex];
+      mapContainer.removeChild(enemy.sprite);
+      enemies.splice(enemyIndex, 1);
+      
+      // Check if all enemies defeated
+      if (enemies.length === 0) {
+        placeFinishTile();
+      }
+    }
+  });
+}
+
+// Bind sword button
+const swordButton = document.getElementById('sword-btn');
+if (swordButton) {
+  const activate = (e) => {
+    e.preventDefault();
+    swordButton.classList.add('active');
+    triggerSwordAttack();
+  };
+
+  const deactivate = (e) => {
+    e.preventDefault();
+    swordButton.classList.remove('active');
+  };
+
+  swordButton.addEventListener('pointerdown', activate);
+  swordButton.addEventListener('pointerup', deactivate);
+  swordButton.addEventListener('pointerleave', deactivate);
+}
 
 document.getElementById('generate').addEventListener('click', async () => {
   resetGame();
