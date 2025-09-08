@@ -1,6 +1,6 @@
 # Endless Dungeon
 
-A modern dungeon pixel art game starter project built with HTML5 Canvas, Pixi.js, and procedural dungeon generation.
+A modern retro dungeon pixel art game starter project built with HTML5 Canvas, Pixi.js, and procedural dungeon generation.
 
 ## Features
 
