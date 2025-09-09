@@ -19,14 +19,14 @@ let goldItems = [];
 // Sprite coordinates in the fulltilesheet (32x32 tiles, coordinates are 0-based)
 const spriteCoords = {
   enemies: [
-    { x: 0, y: 0 },   // First enemy type - top left
-    { x: 1, y: 0 },   // Second enemy type  
-    { x: 2, y: 0 },   // Third enemy type
-    { x: 3, y: 0 },   // Fourth enemy type
-    { x: 4, y: 0 },   // Fifth enemy type
-    { x: 5, y: 0 },   // Sixth enemy type
+    { x: 0, y: 1 },   // First enemy type - second row, first column
+    { x: 1, y: 1 },   // Second enemy type  
+    { x: 2, y: 1 },   // Third enemy type
+    { x: 3, y: 1 },   // Fourth enemy type
+    { x: 4, y: 1 },   // Fifth enemy type
+    { x: 5, y: 1 },   // Sixth enemy type
   ],
-  gold: { x: 6, y: 10 }, // Gold coin sprite - found in middle section
+  gold: { x: 0, y: 10 }, // Gold coin sprite - trying a different position
 };
 
 let touchStartX = null;
@@ -378,6 +378,14 @@ function collectGold(gridX, gridY) {
   return false;
 }
 
+function updateGlobalDebugVars() {
+  if (typeof window !== 'undefined') {
+    window.enemies = enemies;
+    window.goldItems = goldItems;
+    window.goldCollected = goldCollected;
+  }
+}
+
 function updateGoldDisplay() {
   // Update the gold counter in the UI
   let goldDisplay = document.getElementById('gold-display');
@@ -402,6 +410,7 @@ function updateGoldDisplay() {
     document.body.appendChild(goldDisplay);
   }
   goldDisplay.textContent = `💰 Gold: ${goldCollected}`;
+  updateGlobalDebugVars();
 }
 
 function resetGame() {
@@ -458,16 +467,35 @@ document.addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', async () => {
-  app = new PIXI.Application({
-    view: document.getElementById('c'),
-    background: '#3C3C3C',
-  });
-  mapContainer = new PIXI.Container();
-  app.stage.addChild(mapContainer);
-
-  setResponsiveCanvasSize();
-  console.log('Starting Endless Dungeon...');
-  await startGame();
+  console.log('DOMContentLoaded event fired');
+  
+  try {
+    app = new PIXI.Application({
+      view: document.getElementById('c'),
+      background: '#3C3C3C',
+    });
+    console.log('PIXI Application created:', app);
+    
+    mapContainer = new PIXI.Container();
+    app.stage.addChild(mapContainer);
+    
+    // Make globally accessible for debugging
+    window.app = app;
+    window.mapContainer = mapContainer;
+    window.textures = textures;
+    window.enemies = enemies;
+    window.goldItems = goldItems;
+    window.goldCollected = goldCollected;
+    window.dropGold = dropGold;
+    window.collectGold = collectGold;
+    updateGlobalDebugVars();
+    
+    setResponsiveCanvasSize();
+    console.log('Starting Endless Dungeon...');
+    await startGame();
+  } catch (error) {
+    console.error('Error initializing game:', error);
+  }
 });
 
 const canvasElement = document.getElementById('c');
