@@ -5,6 +5,10 @@
   "description": "A Pixi.js dungeon pixel art game starter project",
   "author": "vomitorius",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
