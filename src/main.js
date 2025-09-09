@@ -13,6 +13,21 @@ let speed = tileSize;
 const textures = {};
 let enemies = [];
 let isAttacking = false;
+let goldCollected = 0;
+let goldItems = [];
+
+// Sprite coordinates in the fulltilesheet (32x32 tiles, coordinates are 0-based)
+const spriteCoords = {
+  enemies: [
+    { x: 0, y: 0 },   // First enemy type - top left
+    { x: 1, y: 0 },   // Second enemy type  
+    { x: 2, y: 0 },   // Third enemy type
+    { x: 3, y: 0 },   // Fourth enemy type
+    { x: 4, y: 0 },   // Fifth enemy type
+    { x: 5, y: 0 },   // Sixth enemy type
+  ],
+  gold: { x: 6, y: 10 }, // Gold coin sprite - found in middle section
+};
 
 let touchStartX = null;
 let touchStartY = null;
@@ -90,10 +105,45 @@ function calculateTileSize() {
 }
 
 async function loadTextures() {
-  const names = ['knight', 'wall', 'door', 'finish', 'enemy'];
+  const names = ['knight', 'wall', 'door', 'finish'];
   for (const name of names) {
     textures[name] = await PIXI.Assets.load(`/img/${name}.png`);
   }
+  
+  // Load the full tilesheet
+  textures.fulltilesheet = await PIXI.Assets.load('/img/fulltilesheet.png');
+}
+
+function createSpriteFromTilesheet(coordX, coordY, tileSize = 32) {
+  const texture = new PIXI.Texture(
+    textures.fulltilesheet,
+    new PIXI.Rectangle(coordX * tileSize, coordY * tileSize, tileSize, tileSize)
+  );
+  return texture;
+}
+
+function createEnemySprite(gridX, gridY, enemyType = 0) {
+  const enemyCoords = spriteCoords.enemies[enemyType] || spriteCoords.enemies[0];
+  const texture = createSpriteFromTilesheet(enemyCoords.x, enemyCoords.y);
+  const sprite = new PIXI.Sprite(texture);
+  sprite.width = tileSize;
+  sprite.height = tileSize;
+  sprite.x = gridX * tileSize;
+  sprite.y = gridY * tileSize;
+  mapContainer.addChild(sprite);
+  return sprite;
+}
+
+function createGoldSprite(gridX, gridY) {
+  const goldCoords = spriteCoords.gold;
+  const texture = createSpriteFromTilesheet(goldCoords.x, goldCoords.y);
+  const sprite = new PIXI.Sprite(texture);
+  sprite.width = tileSize;
+  sprite.height = tileSize;
+  sprite.x = gridX * tileSize;
+  sprite.y = gridY * tileSize;
+  mapContainer.addChild(sprite);
+  return sprite;
 }
 
 function createSprite(type, gridX, gridY) {
@@ -130,6 +180,9 @@ async function startGame() {
   setResponsiveCanvasSize();
 
   await loadTextures();
+  
+  // Create or update gold counter display
+  updateGoldDisplay();
 
   const maxTilesWidth = Math.floor(app.renderer.width / tileSize);
   const maxTilesHeight = Math.floor(app.renderer.height / tileSize);
@@ -151,6 +204,7 @@ async function startGame() {
   mapContainer.removeChildren();
   knight = null;
   enemies = [];
+  goldItems = [];
 
   let knightPlaced = false;
   
@@ -189,15 +243,16 @@ async function startGame() {
     }
   }
 
-  // Place 3-5 enemies randomly
+  // Place 3-5 enemies randomly with varied designs
   const numEnemies = Math.min(Math.floor(Math.random() * 3) + 3, floorTiles.length);
   for (let i = 0; i < numEnemies; i++) {
     const randomIndex = Math.floor(Math.random() * floorTiles.length);
     const tile = floorTiles.splice(randomIndex, 1)[0];
+    const enemyType = Math.floor(Math.random() * spriteCoords.enemies.length);
     const enemy = {
       x: tile.x,
       y: tile.y,
-      sprite: createSprite('enemy', tile.x, tile.y)
+      sprite: createEnemySprite(tile.x, tile.y, enemyType)
     };
     enemies.push(enemy);
   }
@@ -255,6 +310,9 @@ function triggerSingleStepMovement(direction) {
       mapContainer.removeChild(enemy.sprite);
       enemies.splice(enemyIndex, 1);
       
+      // Drop gold where enemy was defeated
+      dropGold(moveX, moveY);
+      
       // Brief attack animation
       isAttacking = true;
       setTimeout(() => {
@@ -274,6 +332,9 @@ function triggerSingleStepMovement(direction) {
       tileType === 'door' ||
       tileType === 'finish'
     ) {
+      // Check for gold collection first
+      collectGold(moveX, moveY);
+      
       x = newX;
       y = newY;
 
@@ -287,15 +348,73 @@ function triggerSingleStepMovement(direction) {
   }
 }
 
+function generateRandomGold() {
+  const goldAmounts = [10, 20, 50, 100, 200, 500, 1000];
+  return goldAmounts[Math.floor(Math.random() * goldAmounts.length)];
+}
+
+function dropGold(gridX, gridY) {
+  const goldAmount = generateRandomGold();
+  const goldSprite = createGoldSprite(gridX, gridY);
+  const goldItem = {
+    x: gridX,
+    y: gridY,
+    amount: goldAmount,
+    sprite: goldSprite
+  };
+  goldItems.push(goldItem);
+}
+
+function collectGold(gridX, gridY) {
+  const goldIndex = goldItems.findIndex(gold => gold.x === gridX && gold.y === gridY);
+  if (goldIndex !== -1) {
+    const gold = goldItems[goldIndex];
+    goldCollected += gold.amount;
+    mapContainer.removeChild(gold.sprite);
+    goldItems.splice(goldIndex, 1);
+    updateGoldDisplay();
+    return true;
+  }
+  return false;
+}
+
+function updateGoldDisplay() {
+  // Update the gold counter in the UI
+  let goldDisplay = document.getElementById('gold-display');
+  if (!goldDisplay) {
+    // Create gold display element
+    goldDisplay = document.createElement('div');
+    goldDisplay.id = 'gold-display';
+    goldDisplay.style.cssText = `
+      position: fixed;
+      top: 70px;
+      right: 20px;
+      background: rgba(139, 69, 19, 0.9);
+      color: gold;
+      padding: 8px 15px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 14px;
+      border: 2px solid #654321;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    `;
+    document.body.appendChild(goldDisplay);
+  }
+  goldDisplay.textContent = `💰 Gold: ${goldCollected}`;
+}
+
 function resetGame() {
   knight = null;
   dungeon = null;
   enemies = [];
+  goldItems = [];
   isAttacking = false;
   keyPressed.clear();
   mapContainer.removeChildren();
   x = 0;
   y = 0;
+  // Note: goldCollected is persistent across games, so we don't reset it
 }
 
 document.addEventListener('keyup', (e) => {
@@ -464,6 +583,9 @@ function triggerSwordAttack() {
       const enemy = enemies[enemyIndex];
       mapContainer.removeChild(enemy.sprite);
       enemies.splice(enemyIndex, 1);
+      
+      // Drop gold where enemy was defeated
+      dropGold(pos.x, pos.y);
       
       // Check if all enemies defeated
       if (enemies.length === 0) {
