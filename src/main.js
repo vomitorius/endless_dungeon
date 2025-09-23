@@ -43,7 +43,7 @@ const MOVE_INTERVAL = 150; // milliseconds between moves when holding key
 let targetPath = [];
 let isAutoMoving = false;
 let lastAutoMoveTime = 0;
-const AUTO_MOVE_INTERVAL = 500; // milliseconds between pathfinding steps
+const AUTO_MOVE_INTERVAL = 200; // milliseconds between pathfinding steps
 
 function getResponsiveCanvasSize() {
   const container = document.getElementById('content');
@@ -410,7 +410,7 @@ function handleAutoMovement() {
 }
 
 // Simple A* pathfinding implementation
-function findPath(startX, startY, endX, endY) {
+function findPath(startX, startY, endX, endY, allowEnemyTarget = false) {
   if (!dungeon || !dungeon.tiles) return [];
   
   const openSet = [];
@@ -470,9 +470,9 @@ function findPath(startX, startY, endX, endY) {
         continue;
       }
       
-      // Check if there's an enemy at this position (treat as obstacle)
+      // Check if there's an enemy at this position (treat as obstacle unless it's the target)
       const enemyAtPos = enemies.find(enemy => enemy.x === neighbor.x && enemy.y === neighbor.y);
-      if (enemyAtPos) {
+      if (enemyAtPos && !(allowEnemyTarget && neighbor.x === endX && neighbor.y === endY)) {
         continue;
       }
       
@@ -760,8 +760,11 @@ canvasElement.addEventListener('click', (e) => {
     
     const targetTileType = dungeon.tiles[targetGridX][targetGridY].type;
     
-    // Only allow movement to walkable tiles
-    if (targetTileType === 'floor' || targetTileType === 'door' || targetTileType === 'finish') {
+    // Check if there's an enemy at this position
+    const enemyAtTarget = enemies.find(enemy => enemy.x === targetGridX && enemy.y === targetGridY);
+    
+    // Allow movement to walkable tiles OR tiles with enemies
+    if (targetTileType === 'floor' || targetTileType === 'door' || targetTileType === 'finish' || enemyAtTarget) {
       // Cancel keyboard movement
       isMoving = false;
       moveDirection = null;
@@ -771,7 +774,7 @@ canvasElement.addEventListener('click', (e) => {
       const currentGridY = Math.floor(y / tileSize);
       
       // Find path to target
-      const path = findPath(currentGridX, currentGridY, targetGridX, targetGridY);
+      const path = findPath(currentGridX, currentGridY, targetGridX, targetGridY, !!enemyAtTarget);
       
       if (path.length > 0) {
         targetPath = path;
