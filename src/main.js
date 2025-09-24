@@ -43,7 +43,7 @@ const MOVE_INTERVAL = 150; // milliseconds between moves when holding key
 let targetPath = [];
 let isAutoMoving = false;
 let lastAutoMoveTime = 0;
-const AUTO_MOVE_INTERVAL = 200; // milliseconds between pathfinding steps
+const AUTO_MOVE_INTERVAL = 50; // milliseconds between pathfinding steps
 
 function getResponsiveCanvasSize() {
   const container = document.getElementById('content');
@@ -503,11 +503,44 @@ function generateRandomGold() {
 }
 
 function dropGold(gridX, gridY) {
+  // Find a random neighboring tile to drop gold
+  const neighbors = [
+    { x: gridX - 1, y: gridY },     // left
+    { x: gridX + 1, y: gridY },     // right
+    { x: gridX, y: gridY - 1 },     // up
+    { x: gridX, y: gridY + 1 },     // down
+    { x: gridX - 1, y: gridY - 1 }, // top-left
+    { x: gridX + 1, y: gridY - 1 }, // top-right
+    { x: gridX - 1, y: gridY + 1 }, // bottom-left
+    { x: gridX + 1, y: gridY + 1 }  // bottom-right
+  ];
+  
+  // Filter valid neighbors (within bounds and walkable)
+  const validNeighbors = neighbors.filter(neighbor => {
+    if (neighbor.x < 0 || neighbor.x >= dungeon.tiles.length ||
+        neighbor.y < 0 || neighbor.y >= dungeon.tiles[neighbor.x].length) {
+      return false;
+    }
+    
+    const tileType = dungeon.tiles[neighbor.x][neighbor.y].type;
+    return tileType === 'floor' || tileType === 'door';
+  });
+  
+  // If no valid neighbors, drop at original position as fallback
+  let dropX = gridX;
+  let dropY = gridY;
+  
+  if (validNeighbors.length > 0) {
+    const randomNeighbor = validNeighbors[Math.floor(Math.random() * validNeighbors.length)];
+    dropX = randomNeighbor.x;
+    dropY = randomNeighbor.y;
+  }
+  
   const goldAmount = generateRandomGold();
-  const goldSprite = createGoldSprite(gridX, gridY);
+  const goldSprite = createGoldSprite(dropX, dropY);
   const goldItem = {
-    x: gridX,
-    y: gridY,
+    x: dropX,
+    y: dropY,
     amount: goldAmount,
     sprite: goldSprite
   };
