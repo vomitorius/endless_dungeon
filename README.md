@@ -5,7 +5,11 @@ A modern retro dungeon pixel art game starter project built with HTML5 Canvas, P
 ## Features
 
 - 🏰 Procedural dungeon generation using Dungeoneer
-- 🛡️ Knight character with arrow key movement
+- 🛡️ Knight character with smooth movement controls
+- 🖱️ **Diablo-style mouse click pathfinding** - Click to move with automatic route finding
+- ⌨️ **Smooth keyboard movement** - Hold arrow keys for continuous movement
+- 🎯 A* pathfinding algorithm for intelligent navigation
+- ⚔️ Combat system with enemies and gold rewards
 - 🎨 Pixel art graphics with 32x32 sprites
 - ✨ Win condition when reaching the finish tile
 - 🎲 Generate new dungeons on demand
@@ -49,10 +53,16 @@ npm run dev
 
 ## How to Play
 
-1. Use arrow keys to move your knight around the dungeon
+1. **Movement Controls:**
+   - **Arrow Keys**: Hold for smooth continuous movement
+   - **Mouse Click**: Click on any walkable tile for automatic pathfinding (500ms steps)
+   - **Touch/Swipe**: Swipe gestures on mobile devices
+   - **Virtual Gamepad**: On-screen controls for mobile
 2. Navigate through floors (dark areas) and doors
-3. Avoid walls (brown blocks)
-4. Reach the finish tile to win and generate a new dungeon
+3. Defeat enemies by moving into them (they drop gold)
+4. Avoid walls (brown blocks)
+5. Collect all gold and reach the finish tile to win
+6. Generate new dungeons for endless gameplay
 5. Click "Generate New Dungeon" to create a new challenge
 
 ## Game Elements

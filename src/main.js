@@ -33,6 +33,18 @@ let touchStartX = null;
 let touchStartY = null;
 const keyPressed = new Set();
 
+// Smooth movement variables
+let isMoving = false;
+let moveDirection = null;
+let lastMoveTime = 0;
+const MOVE_INTERVAL = 150; // milliseconds between moves when holding key
+
+// Mouse pathfinding variables
+let targetPath = [];
+let isAutoMoving = false;
+let lastAutoMoveTime = 0;
+const AUTO_MOVE_INTERVAL = 50; // milliseconds between pathfinding steps
+
 function getResponsiveCanvasSize() {
   const container = document.getElementById('content');
   const containerWidth = container.offsetWidth - 30;
@@ -263,6 +275,12 @@ async function startGame() {
     if (knight) {
       knight.x = x;
       knight.y = y;
+      
+      // Handle smooth movement
+      handleSmoothMovement();
+      
+      // Handle auto-movement from mouse clicks
+      handleAutoMovement();
     }
   });
 }
@@ -348,17 +366,181 @@ function triggerSingleStepMovement(direction) {
   }
 }
 
+function handleSmoothMovement() {
+  if (!isMoving || !moveDirection) return;
+  
+  const currentTime = Date.now();
+  if (currentTime - lastMoveTime >= MOVE_INTERVAL) {
+    triggerSingleStepMovement(moveDirection);
+    lastMoveTime = currentTime;
+  }
+}
+
+function handleAutoMovement() {
+  if (!isAutoMoving || targetPath.length === 0) return;
+  
+  const currentTime = Date.now();
+  if (currentTime - lastAutoMoveTime >= AUTO_MOVE_INTERVAL) {
+    const nextStep = targetPath.shift();
+    if (nextStep) {
+      const currentGridX = Math.floor(x / tileSize);
+      const currentGridY = Math.floor(y / tileSize);
+      
+      const deltaX = nextStep.x - currentGridX;
+      const deltaY = nextStep.y - currentGridY;
+      
+      let direction = null;
+      if (deltaX > 0) direction = 'right';
+      else if (deltaX < 0) direction = 'left';
+      else if (deltaY > 0) direction = 'down';
+      else if (deltaY < 0) direction = 'up';
+      
+      if (direction) {
+        triggerSingleStepMovement(direction);
+      }
+      
+      lastAutoMoveTime = currentTime;
+    }
+    
+    // Stop auto-movement when path is complete
+    if (targetPath.length === 0) {
+      isAutoMoving = false;
+    }
+  }
+}
+
+// Simple A* pathfinding implementation
+function findPath(startX, startY, endX, endY, allowEnemyTarget = false) {
+  if (!dungeon || !dungeon.tiles) return [];
+  
+  const openSet = [];
+  const closedSet = new Set();
+  const cameFrom = new Map();
+  const gScore = new Map();
+  const fScore = new Map();
+  
+  const startKey = `${startX},${startY}`;
+  
+  openSet.push({ x: startX, y: startY, key: startKey });
+  gScore.set(startKey, 0);
+  fScore.set(startKey, heuristic(startX, startY, endX, endY));
+  
+  while (openSet.length > 0) {
+    // Find node with lowest fScore
+    let current = openSet.reduce((lowest, node) => 
+      fScore.get(node.key) < fScore.get(lowest.key) ? node : lowest
+    );
+    
+    if (current.x === endX && current.y === endY) {
+      // Reconstruct path
+      const path = [];
+      let currentKey = current.key;
+      
+      while (cameFrom.has(currentKey)) {
+        const coords = currentKey.split(',').map(Number);
+        path.unshift({ x: coords[0], y: coords[1] });
+        currentKey = cameFrom.get(currentKey);
+      }
+      
+      return path;
+    }
+    
+    openSet.splice(openSet.indexOf(current), 1);
+    closedSet.add(current.key);
+    
+    // Check neighbors
+    const neighbors = [
+      { x: current.x - 1, y: current.y },
+      { x: current.x + 1, y: current.y },
+      { x: current.x, y: current.y - 1 },
+      { x: current.x, y: current.y + 1 }
+    ];
+    
+    for (const neighbor of neighbors) {
+      const neighborKey = `${neighbor.x},${neighbor.y}`;
+      
+      // Check bounds and walkability
+      if (neighbor.x < 0 || neighbor.x >= dungeon.tiles.length ||
+          neighbor.y < 0 || neighbor.y >= dungeon.tiles[neighbor.x].length) {
+        continue;
+      }
+      
+      const tileType = dungeon.tiles[neighbor.x][neighbor.y].type;
+      if (tileType === 'wall' || closedSet.has(neighborKey)) {
+        continue;
+      }
+      
+      // Check if there's an enemy at this position (treat as obstacle unless it's the target)
+      const enemyAtPos = enemies.find(enemy => enemy.x === neighbor.x && enemy.y === neighbor.y);
+      if (enemyAtPos && !(allowEnemyTarget && neighbor.x === endX && neighbor.y === endY)) {
+        continue;
+      }
+      
+      const tentativeGScore = gScore.get(current.key) + 1;
+      
+      if (!gScore.has(neighborKey) || tentativeGScore < gScore.get(neighborKey)) {
+        cameFrom.set(neighborKey, current.key);
+        gScore.set(neighborKey, tentativeGScore);
+        fScore.set(neighborKey, tentativeGScore + heuristic(neighbor.x, neighbor.y, endX, endY));
+        
+        if (!openSet.find(node => node.key === neighborKey)) {
+          openSet.push({ x: neighbor.x, y: neighbor.y, key: neighborKey });
+        }
+      }
+    }
+  }
+  
+  return []; // No path found
+}
+
+function heuristic(x1, y1, x2, y2) {
+  return Math.abs(x1 - x2) + Math.abs(y1 - y2); // Manhattan distance
+}
+
 function generateRandomGold() {
   const goldAmounts = [10, 20, 50, 100, 200, 500, 1000];
   return goldAmounts[Math.floor(Math.random() * goldAmounts.length)];
 }
 
 function dropGold(gridX, gridY) {
+  // Find a random neighboring tile to drop gold
+  const neighbors = [
+    { x: gridX - 1, y: gridY },     // left
+    { x: gridX + 1, y: gridY },     // right
+    { x: gridX, y: gridY - 1 },     // up
+    { x: gridX, y: gridY + 1 },     // down
+    { x: gridX - 1, y: gridY - 1 }, // top-left
+    { x: gridX + 1, y: gridY - 1 }, // top-right
+    { x: gridX - 1, y: gridY + 1 }, // bottom-left
+    { x: gridX + 1, y: gridY + 1 }  // bottom-right
+  ];
+  
+  // Filter valid neighbors (within bounds and walkable)
+  const validNeighbors = neighbors.filter(neighbor => {
+    if (neighbor.x < 0 || neighbor.x >= dungeon.tiles.length ||
+        neighbor.y < 0 || neighbor.y >= dungeon.tiles[neighbor.x].length) {
+      return false;
+    }
+    
+    const tileType = dungeon.tiles[neighbor.x][neighbor.y].type;
+    return tileType === 'floor' || tileType === 'door';
+  });
+  
+  // If no valid neighbors, drop at original position as fallback
+  let dropX = gridX;
+  let dropY = gridY;
+  
+  if (validNeighbors.length > 0) {
+    const randomNeighbor = validNeighbors[Math.floor(Math.random() * validNeighbors.length)];
+    dropX = randomNeighbor.x;
+    dropY = randomNeighbor.y;
+  }
+  
   const goldAmount = generateRandomGold();
-  const goldSprite = createGoldSprite(gridX, gridY);
+  const goldSprite = createGoldSprite(dropX, dropY);
   const goldItem = {
-    x: gridX,
-    y: gridY,
+    x: dropX,
+    y: dropY,
     amount: goldAmount,
     sprite: goldSprite
   };
@@ -423,6 +605,15 @@ function resetGame() {
   mapContainer.removeChildren();
   x = 0;
   y = 0;
+  
+  // Reset movement states
+  isMoving = false;
+  moveDirection = null;
+  lastMoveTime = 0;
+  isAutoMoving = false;
+  targetPath = [];
+  lastAutoMoveTime = 0;
+  
   // Note: goldCollected is persistent across games, so we don't reset it
 }
 
@@ -432,6 +623,13 @@ document.addEventListener('keyup', (e) => {
     case 'ArrowUp':
     case 'ArrowRight':
     case 'ArrowDown':
+      keyPressed.delete(e.code);
+      // Stop smooth movement when key is released
+      if (moveDirection === getDirectionFromKeyCode(e.code)) {
+        isMoving = false;
+        moveDirection = null;
+      }
+      break;
     case 'Space':
       keyPressed.delete(e.code);
       break;
@@ -448,16 +646,16 @@ document.addEventListener('keydown', (e) => {
 
   switch (e.code) {
     case 'ArrowLeft':
-      triggerSingleStepMovement('left');
+      startSmoothMovement('left');
       break;
     case 'ArrowUp':
-      triggerSingleStepMovement('up');
+      startSmoothMovement('up');
       break;
     case 'ArrowRight':
-      triggerSingleStepMovement('right');
+      startSmoothMovement('right');
       break;
     case 'ArrowDown':
-      triggerSingleStepMovement('down');
+      startSmoothMovement('down');
       break;
     case 'Space':
       triggerSwordAttack();
@@ -465,6 +663,26 @@ document.addEventListener('keydown', (e) => {
   }
   e.preventDefault();
 });
+
+function getDirectionFromKeyCode(keyCode) {
+  switch (keyCode) {
+    case 'ArrowLeft': return 'left';
+    case 'ArrowUp': return 'up';
+    case 'ArrowRight': return 'right';
+    case 'ArrowDown': return 'down';
+    default: return null;
+  }
+}
+
+function startSmoothMovement(direction) {
+  // Cancel any auto-movement from mouse clicks
+  isAutoMoving = false;
+  targetPath = [];
+  
+  isMoving = true;
+  moveDirection = direction;
+  lastMoveTime = 0; // Trigger immediate first move
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('DOMContentLoaded event fired');
@@ -556,18 +774,67 @@ canvasElement.addEventListener(
   { passive: false },
 );
 
+// Mouse click event handler for pathfinding movement
+canvasElement.addEventListener('click', (e) => {
+  if (!knight || !dungeon) return;
+  
+  // Get canvas bounds and calculate click position relative to canvas
+  const rect = canvasElement.getBoundingClientRect();
+  const clickX = e.clientX - rect.left;
+  const clickY = e.clientY - rect.top;
+  
+  // Convert to grid coordinates
+  const targetGridX = Math.floor(clickX / tileSize);
+  const targetGridY = Math.floor(clickY / tileSize);
+  
+  // Check if target is within bounds
+  if (targetGridX >= 0 && targetGridX < dungeon.tiles.length &&
+      targetGridY >= 0 && targetGridY < dungeon.tiles[targetGridX].length) {
+    
+    const targetTileType = dungeon.tiles[targetGridX][targetGridY].type;
+    
+    // Check if there's an enemy at this position
+    const enemyAtTarget = enemies.find(enemy => enemy.x === targetGridX && enemy.y === targetGridY);
+    
+    // Allow movement to walkable tiles OR tiles with enemies
+    if (targetTileType === 'floor' || targetTileType === 'door' || targetTileType === 'finish' || enemyAtTarget) {
+      // Cancel keyboard movement
+      isMoving = false;
+      moveDirection = null;
+      
+      // Get current position
+      const currentGridX = Math.floor(x / tileSize);
+      const currentGridY = Math.floor(y / tileSize);
+      
+      // Find path to target
+      const path = findPath(currentGridX, currentGridY, targetGridX, targetGridY, !!enemyAtTarget);
+      
+      if (path.length > 0) {
+        targetPath = path;
+        isAutoMoving = true;
+        lastAutoMoveTime = 0; // Trigger immediate first move
+      }
+    }
+  }
+});
+
 const gamepadButtons = document.querySelectorAll('.dpad-btn');
 
 function bindGamepadButton(button, direction) {
   const activate = (e) => {
     e.preventDefault();
     button.classList.add('active');
-    triggerSingleStepMovement(direction);
+    startSmoothMovement(direction);
   };
 
   const deactivate = (e) => {
     e.preventDefault();
     button.classList.remove('active');
+    // Stop smooth movement when button is released
+    if (moveDirection === direction) {
+      isMoving = false;
+      moveDirection = null;
+    }
   };
 
   button.addEventListener('pointerdown', activate);
