@@ -23,8 +23,14 @@ export class SpriteManager {
   // Load all textures
   async loadTextures() {
     try {
-      const texture = await PIXI.Assets.load('/img/fulltilesheet.png');
-      this.textures.fulltilesheet = texture;
+      // Load individual texture files for basic sprites
+      const names = ['knight', 'wall', 'door', 'finish'];
+      for (const name of names) {
+        this.textures[name] = await PIXI.Assets.load(`/img/${name}.png`);
+      }
+      
+      // Load the full tilesheet for enemies and gold
+      this.textures.fulltilesheet = await PIXI.Assets.load('/img/fulltilesheet.png');
       console.log('Textures loaded successfully');
     } catch (error) {
       console.error('Error loading textures:', error);
@@ -79,40 +85,18 @@ export class SpriteManager {
 
   // Create generic sprite
   createSprite(type, gridX, gridY, tileSize) {
-    let coordX, coordY;
-    
-    switch (type) {
-      case 'wall':
-        coordX = 0;
-        coordY = 0;
-        break;
-      case 'door':
-        coordX = 1;
-        coordY = 0;
-        break;
-      case 'knight':
-        coordX = 2;
-        coordY = 0;
-        break;
-      case 'finish':
-        coordX = 3;
-        coordY = 0;
-        break;
-      default:
-        console.warn(`Unknown sprite type: ${type}`);
-        coordX = 0;
-        coordY = 0;
+    // Use individual texture files for basic sprites (wall, door, knight, finish)
+    if (this.textures[type]) {
+      const sprite = new PIXI.Sprite(this.textures[type]);
+      sprite.width = tileSize;
+      sprite.height = tileSize;
+      sprite.x = gridX * tileSize;
+      sprite.y = gridY * tileSize;
+      return sprite;
+    } else {
+      console.warn(`Texture not found for sprite type: ${type}`);
+      return null;
     }
-
-    const texture = this.createSpriteFromTilesheet(coordX, coordY, tileSize);
-    if (!texture) return null;
-    
-    const sprite = new PIXI.Sprite(texture);
-    sprite.width = tileSize;
-    sprite.height = tileSize;
-    sprite.x = gridX * tileSize;
-    sprite.y = gridY * tileSize;
-    return sprite;
   }
 
   // Update tile size
