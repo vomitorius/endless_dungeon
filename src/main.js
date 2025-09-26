@@ -13,6 +13,7 @@ let mapContainer;
 let dungeon = null;
 let tileSize = 32;
 let speed = tileSize;
+let currentLevel = 1; // Track current level
 
 // Game systems
 let player = null;
@@ -260,13 +261,15 @@ async function triggerSingleStepMovement(direction) {
       
       updateGoldDisplay();
     } else if (combatResult && combatResult.winner === 'enemy') {
+      // Update health display after taking damage
+      updateHealthDisplay();
       // Player lost the combat but check if they're actually dead
       if (!player.isAlive || player.health <= 0) {
-        // Player is actually defeated
+        // Player is actually defeated - show game over screen
         console.log('Player defeated! Game over.');
         setTimeout(() => {
-          resetGame();
-        }, 1000);
+          showGameOverScreen();
+        }, 500);
       } else {
         // Player survived but took damage - continue game
         console.log(`Player lost combat but survived with ${player.health} health`);
@@ -284,9 +287,10 @@ async function triggerSingleStepMovement(direction) {
     player.setPosition(newX, newY);
 
     if (tileType === 'finish') {
+      // Level completed - advance to next level silently
+      currentLevel++;
+      console.log(`Level ${currentLevel-1} completed! Advancing to level ${currentLevel}`);
       setTimeout(() => {
-        // eslint-disable-next-line no-undef
-        alert('🎉 Victory! Generating new dungeon...');
         startGame();
       }, 100);
     }
@@ -338,13 +342,15 @@ async function triggerSwordAttack() {
         
         updateGoldDisplay();
       } else if (combatResult && combatResult.winner === 'enemy') {
+        // Update health display after taking damage
+        updateHealthDisplay();
         // Player lost the combat but check if they're actually dead
         if (!player.isAlive || player.health <= 0) {
-          // Player is actually defeated
+          // Player is actually defeated - show game over screen
           console.log('Player defeated! Game over.');
           setTimeout(() => {
-            resetGame();
-          }, 1000);
+            showGameOverScreen();
+          }, 500);
         } else {
           // Player survived but took damage - continue game
           console.log(`Player lost combat but survived with ${player.health} health`);
@@ -489,7 +495,7 @@ function updateGoldDisplay() {
   updateGlobalDebugVars();
 }
 
-// Create player health display
+// Create player health display with level counter
 function updateHealthDisplay() {
   let healthDisplay = document.getElementById('health-display');
   if (!healthDisplay) {
@@ -508,6 +514,7 @@ function updateHealthDisplay() {
       border: 2px solid #8B0000;
       z-index: 1000;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      min-width: 120px;
     `;
     document.body.appendChild(healthDisplay);
   }
@@ -518,15 +525,74 @@ function updateHealthDisplay() {
                        healthPercentage > 0.3 ? '#ffff00' : '#ff0000';
     
     healthDisplay.innerHTML = `
-      <div>❤️ Health: ${player.health}/${player.maxHealth}</div>
+      <div>🏰 Level: ${currentLevel}</div>
+      <div style="margin-top: 4px;">❤️ Health: ${player.health}/${player.maxHealth}</div>
       <div style="width: 100px; height: 6px; background: #333; border-radius: 3px; margin-top: 4px;">
-        <div style="width: ${healthPercentage * 100}%; height: 100%; background: ${healthColor}; border-radius: 3px;"></div>
+        <div style="width: ${healthPercentage * 100}%; height: 100%; background: ${healthColor}; border-radius: 3px; transition: width 0.3s ease, background-color 0.3s ease;"></div>
       </div>
     `;
   }
 }
 
+function showGameOverScreen() {
+  // Create game over overlay
+  let gameOverScreen = document.getElementById('game-over-screen');
+  if (!gameOverScreen) {
+    gameOverScreen = document.createElement('div');
+    gameOverScreen.id = 'game-over-screen';
+    gameOverScreen.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 3000;
+      font-family: 'Courier New', monospace;
+      text-align: center;
+    `;
+    document.body.appendChild(gameOverScreen);
+  }
+
+  gameOverScreen.innerHTML = `
+    <h1 style="color: #ff0000; font-size: 48px; margin-bottom: 20px;">💀 GAME OVER 💀</h1>
+    <p style="font-size: 24px; margin-bottom: 10px;">You reached level ${currentLevel}</p>
+    <p style="font-size: 18px; margin-bottom: 30px; color: #ffff00;">Gold collected: ${player ? player.goldCollected : 0}</p>
+    <button onclick="resetGame()" style="
+      padding: 15px 30px;
+      font-size: 18px;
+      background: #8B0000;
+      color: white;
+      border: 2px solid #ff0000;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      font-weight: bold;
+    ">Try Again</button>
+  `;
+  
+  gameOverScreen.style.display = 'flex';
+}
+
+function hideGameOverScreen() {
+  const gameOverScreen = document.getElementById('game-over-screen');
+  if (gameOverScreen) {
+    gameOverScreen.style.display = 'none';
+  }
+}
+
 function resetGame() {
+  // Hide game over screen
+  hideGameOverScreen();
+  
+  // Reset level counter
+  currentLevel = 1;
+  
   if (player) {
     player.reset();
   }
@@ -538,6 +604,10 @@ function resetGame() {
   if (movementSystem) {
     movementSystem.clearPressedKeys();
     movementSystem.stopAllMovement();
+  }
+  
+  if (combatSystem) {
+    combatSystem.cleanupHealthBars();
   }
   
   mapContainer.removeChildren();

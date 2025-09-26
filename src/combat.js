@@ -1,194 +1,132 @@
-// Simplified combat system with single dice roll
+// Real-time combat system like Diablo
 export class Combat {
   constructor() {
     this.isInCombat = false;
-    this.combatUI = null;
-    this.createCombatUI();
+    this.activeEnemyHealthBars = new Map(); // Track enemy health bars
   }
 
-  // Create combat UI elements
-  createCombatUI() {
-    // Remove existing combat UI
-    const existingUI = document.getElementById('combat-ui');
-    if (existingUI) {
-      existingUI.remove();
-    }
-
-    this.combatUI = document.createElement('div');
-    this.combatUI.id = 'combat-ui';
-    this.combatUI.style.cssText = `
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(0, 0, 0, 0.9);
-      color: white;
-      padding: 30px;
-      border-radius: 15px;
-      border: 3px solid #8B4513;
-      min-width: 350px;
-      text-align: center;
-      z-index: 2000;
-      font-family: 'Courier New', monospace;
-      display: none;
-      box-shadow: 0 0 20px rgba(0,0,0,0.8);
-    `;
-    document.body.appendChild(this.combatUI);
-  }
-
-  // Roll a dice (1-20)
-  rollDice() {
-    return Math.floor(Math.random() * 20) + 1;
-  }
-
-  // Perform simplified combat - single dice roll determines winner
+  // Instant combat resolution - like Diablo
   async performCombat(player, enemy) {
     if (this.isInCombat) return null;
     
     this.isInCombat = true;
     
-    // Show combat UI
-    this.showCombatUI(player, enemy);
+    // Show enemy health bar
+    this.showEnemyHealthBar(enemy);
     
-    // Single dice roll for each combatant
-    const playerRoll = this.rollDice();
-    const enemyRoll = this.rollDice();
+    // Calculate damage - player always attacks first
+    const playerDamage = Math.max(1, player.damage - enemy.shield);
+    const enemyTakeDamageResult = enemy.takeDamage(playerDamage);
     
-    // Add stat-based modifiers
-    const playerModifier = Math.floor(player.damage / 5) + Math.floor(player.shield / 3);
-    const enemyModifier = Math.floor(enemy.damage / 5) + Math.floor(enemy.shield / 3);
+    // Update enemy health bar
+    this.updateEnemyHealthBar(enemy);
     
-    const playerTotal = playerRoll + playerModifier;
-    const enemyTotal = enemyRoll + enemyModifier;
-    
-    // Show dice roll animation
-    await this.showDiceRoll(playerRoll, enemyRoll, playerModifier, enemyModifier, playerTotal, enemyTotal);
-    
-    // Determine winner
     let combatResult;
-    if (playerTotal > enemyTotal) {
+    
+    if (!enemy.isAlive) {
+      // Enemy dies - player wins
       combatResult = { winner: 'player', goldEarned: enemy.getGoldDrop() };
-      enemy.health = 0;
-      enemy.isAlive = false;
-    } else if (enemyTotal > playerTotal) {
-      combatResult = { winner: 'enemy', goldEarned: 0 };
-      // Apply damage to player
-      const damage = Math.max(1, enemy.damage - player.shield);
-      player.takeDamage(damage);
+      // Remove enemy health bar
+      this.hideEnemyHealthBar(enemy);
     } else {
-      // Tie goes to the player (game balance)
-      combatResult = { winner: 'player', goldEarned: enemy.getGoldDrop() };
-      enemy.health = 0;
-      enemy.isAlive = false;
+      // Enemy survives and hits back
+      const enemyDamage = Math.max(1, enemy.damage - player.shield);
+      const playerTakeDamageResult = player.takeDamage(enemyDamage);
+      
+      if (!player.isAlive) {
+        // Player dies
+        combatResult = { winner: 'enemy', goldEarned: 0 };
+        this.hideEnemyHealthBar(enemy);
+      } else {
+        // Both survive - enemy wins this round
+        combatResult = { winner: 'enemy', goldEarned: 0 };
+      }
     }
-    
-    // Show result
-    this.showCombatResult(combatResult, playerTotal, enemyTotal, player, enemy);
-    
-    // Wait before hiding UI
-    await this.sleep(2500);
-    this.hideCombatUI();
     
     this.isInCombat = false;
     return combatResult;
   }
 
-  // Show combat UI with combatant stats
-  showCombatUI(player, enemy) {
-    this.combatUI.style.display = 'block';
-    this.combatUI.innerHTML = `
-      <h3>⚔️ COMBAT ⚔️</h3>
-      <div style="display: flex; justify-content: space-between; margin: 20px 0;">
-        <div style="text-align: left;">
-          <h4>🛡️ Player</h4>
-          <div>❤️ Health: ${player.health}/${player.maxHealth}</div>
-          <div>⚔️ Damage: ${player.damage}</div>
-          <div>🛡️ Shield: ${player.shield}</div>
-        </div>
-        <div style="text-align: right;">
-          <h4>👹 ${enemy.name}</h4>
-          <div>❤️ Health: ${enemy.health}/${enemy.maxHealth}</div>
-          <div>⚔️ Damage: ${enemy.damage}</div>
-          <div>🛡️ Shield: ${enemy.shield}</div>
-        </div>
-      </div>
-      <div id="combat-dice" style="margin-top: 20px; font-size: 16px;">
-        <div style="color: #ffff00;">Rolling dice...</div>
-      </div>
-    `;
-  }
-
-  // Show dice roll animation and results
-  async showDiceRoll(playerRoll, enemyRoll, playerMod, enemyMod, playerTotal, enemyTotal) {
-    const diceDiv = document.getElementById('combat-dice');
-    if (!diceDiv) return;
+  // Show health bar above enemy
+  showEnemyHealthBar(enemy) {
+    if (!enemy.sprite) return;
     
-    // Show rolling animation
-    for (let i = 0; i < 3; i++) {
-      diceDiv.innerHTML = `
-        <div style="color: #ffff00; font-size: 24px;">
-          🎲 Rolling... 🎲
-        </div>
+    const healthBarId = `enemy-health-${enemy.x}-${enemy.y}`;
+    let healthBar = document.getElementById(healthBarId);
+    
+    if (!healthBar) {
+      healthBar = document.createElement('div');
+      healthBar.id = healthBarId;
+      healthBar.style.cssText = `
+        position: fixed;
+        width: 40px;
+        height: 6px;
+        background: #333;
+        border: 1px solid #000;
+        border-radius: 3px;
+        z-index: 1500;
+        pointer-events: none;
       `;
-      await this.sleep(300);
+      
+      const innerBar = document.createElement('div');
+      innerBar.style.cssText = `
+        width: 100%;
+        height: 100%;
+        background: #ff0000;
+        border-radius: 2px;
+        transition: width 0.2s ease;
+      `;
+      
+      healthBar.appendChild(innerBar);
+      document.body.appendChild(healthBar);
+      
+      this.activeEnemyHealthBars.set(enemy, healthBar);
     }
     
-    // Show final results
-    diceDiv.innerHTML = `
-      <div style="color: #00ff00; margin: 10px 0;">
-        🛡️ Player: 🎲 ${playerRoll} + ${playerMod} = <strong>${playerTotal}</strong>
-      </div>
-      <div style="color: #ff6666; margin: 10px 0;">
-        👹 Enemy: 🎲 ${enemyRoll} + ${enemyMod} = <strong>${enemyTotal}</strong>
-      </div>
-    `;
+    this.updateEnemyHealthBar(enemy);
+  }
+  
+  // Update enemy health bar position and width
+  updateEnemyHealthBar(enemy) {
+    if (!enemy.sprite) return;
     
-    await this.sleep(1000);
+    const healthBar = this.activeEnemyHealthBars.get(enemy);
+    if (!healthBar) return;
+    
+    // Position health bar above enemy sprite
+    const spriteRect = enemy.sprite.getBounds();
+    const canvasElement = document.querySelector('canvas');
+    const canvasRect = canvasElement.getBoundingClientRect();
+    
+    healthBar.style.left = `${canvasRect.left + spriteRect.x + spriteRect.width/2 - 20}px`;
+    healthBar.style.top = `${canvasRect.top + spriteRect.y - 10}px`;
+    
+    // Update health percentage
+    const healthPercentage = enemy.getHealthPercentage();
+    const innerBar = healthBar.firstChild;
+    innerBar.style.width = `${healthPercentage * 100}%`;
+    
+    // Color based on health
+    const healthColor = healthPercentage > 0.6 ? '#00ff00' : 
+                       healthPercentage > 0.3 ? '#ffff00' : '#ff0000';
+    innerBar.style.background = healthColor;
+  }
+  
+  // Hide enemy health bar
+  hideEnemyHealthBar(enemy) {
+    const healthBar = this.activeEnemyHealthBars.get(enemy);
+    if (healthBar) {
+      healthBar.remove();
+      this.activeEnemyHealthBars.delete(enemy);
+    }
   }
 
-  // Show final combat result
-  showCombatResult(result, playerTotal, enemyTotal, player, enemy) {
-    const diceDiv = document.getElementById('combat-dice');
-    if (!diceDiv) return;
-    
-    let resultText = '<div style="margin: 20px 0; border: 2px solid #ffff00; padding: 15px; background: rgba(255,255,0,0.1);">';
-    
-    if (result.winner === 'player') {
-      resultText += `
-        <div style="color: #00ff00; font-size: 18px; font-weight: bold;">
-          🎉 VICTORY! 🎉
-        </div>
-        <div style="color: #ffff00; margin: 10px 0;">
-          You defeated the ${enemy.name}!
-        </div>
-        <div style="color: #ffd700;">
-          💰 Dropped ${result.goldEarned} gold on nearby tile!
-        </div>
-      `;
-    } else {
-      const damage = Math.max(1, enemy.damage - player.shield);
-      resultText += `
-        <div style="color: #ff6666; font-size: 18px; font-weight: bold;">
-          💀 DEFEAT 💀
-        </div>
-        <div style="color: #ff6666; margin: 10px 0;">
-          The ${enemy.name} won and dealt ${damage} damage!
-        </div>
-        <div style="color: #ffaa00;">
-          Your health: ${player.health}/${player.maxHealth}
-        </div>
-      `;
+  // Clean up all health bars
+  cleanupHealthBars() {
+    for (const healthBar of this.activeEnemyHealthBars.values()) {
+      healthBar.remove();
     }
-    
-    resultText += '</div>';
-    diceDiv.innerHTML += resultText;
-  }
-
-  // Hide combat UI
-  hideCombatUI() {
-    if (this.combatUI) {
-      this.combatUI.style.display = 'none';
-    }
+    this.activeEnemyHealthBars.clear();
   }
 
   // Helper function to create delays
@@ -196,11 +134,8 @@ export class Combat {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  // Clean up combat UI
+  // Clean up combat system
   destroy() {
-    if (this.combatUI) {
-      this.combatUI.remove();
-      this.combatUI = null;
-    }
+    this.cleanupHealthBars();
   }
 }
