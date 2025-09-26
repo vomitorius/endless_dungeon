@@ -83,10 +83,13 @@ export function findPath(startX, startY, endX, endY, dungeon, enemies, allowEnem
       const path = [];
       let temp = current.key;
       
+      // Add the goal position first
+      path.unshift({ x: current.x, y: current.y });
+      
       while (cameFrom.has(temp)) {
+        temp = cameFrom.get(temp);
         const [x, y] = temp.split(',').map(Number);
         path.unshift({ x, y });
-        temp = cameFrom.get(temp);
       }
       
       return path.slice(1); // Remove starting position
