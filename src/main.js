@@ -162,6 +162,24 @@ class EnemyAI {
     // Enemy attacks player - simulate combat
     console.log(`${enemy.name} attacks player!`);
     
+    // Show enemy health bar during attack
+    if (combatSystem) {
+      combatSystem.showEnemyHealthBar(enemy);
+      combatSystem.recentCombatEnemies.add(enemy);
+      
+      // Hide health bar after a delay if enemy moves away
+      setTimeout(() => {
+        const playerGridX = Math.floor(player.x / tileSize);
+        const playerGridY = Math.floor(player.y / tileSize);
+        const distance = Math.abs(enemy.x - playerGridX) + Math.abs(enemy.y - playerGridY);
+        
+        if (distance > 1) {
+          combatSystem.hideEnemyHealthBar(enemy);
+        }
+        combatSystem.recentCombatEnemies.delete(enemy);
+      }, 2000);
+    }
+    
     const damage = Math.max(1, enemy.damage - player.shield);
     const damageResult = player.takeDamage(damage);
     

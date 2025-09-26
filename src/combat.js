@@ -3,6 +3,7 @@ export class Combat {
   constructor() {
     this.isInCombat = false;
     this.activeEnemyHealthBars = new Map(); // Track enemy health bars
+    this.recentCombatEnemies = new Set(); // Track enemies that were recently in combat
   }
 
   // Instant combat resolution - like Diablo
@@ -13,6 +14,9 @@ export class Combat {
     
     // Show enemy health bar
     this.showEnemyHealthBar(enemy);
+    
+    // Mark enemy as recently in combat
+    this.recentCombatEnemies.add(enemy);
     
     // Calculate damage - player always attacks first
     const playerDamage = Math.max(1, player.damage - enemy.shield);
@@ -26,8 +30,9 @@ export class Combat {
     if (!enemy.isAlive) {
       // Enemy dies - player wins
       combatResult = { winner: 'player', goldEarned: enemy.getGoldDrop() };
-      // Remove enemy health bar
+      // Remove enemy health bar immediately when enemy dies
       this.hideEnemyHealthBar(enemy);
+      this.recentCombatEnemies.delete(enemy);
     } else {
       // Enemy survives and hits back
       const enemyDamage = Math.max(1, enemy.damage - player.shield);
@@ -37,11 +42,22 @@ export class Combat {
         // Player dies
         combatResult = { winner: 'enemy', goldEarned: 0 };
         this.hideEnemyHealthBar(enemy);
+        this.recentCombatEnemies.delete(enemy);
       } else {
         // Both survive - enemy wins this round
         combatResult = { winner: 'enemy', goldEarned: 0 };
-        // Hide enemy health bar since combat is over
-        this.hideEnemyHealthBar(enemy);
+        // Delay hiding the health bar to keep it visible for a moment
+        setTimeout(() => {
+          // Only hide if the enemy is not adjacent to player anymore
+          const playerGridX = Math.floor(player.x / tileSize);
+          const playerGridY = Math.floor(player.y / tileSize);
+          const distance = Math.abs(enemy.x - playerGridX) + Math.abs(enemy.y - playerGridY);
+          
+          if (distance > 1) {
+            this.hideEnemyHealthBar(enemy);
+          }
+          this.recentCombatEnemies.delete(enemy);
+        }, 2000); // Keep health bar visible for 2 seconds after combat
       }
     }
     
@@ -143,13 +159,18 @@ export class Combat {
         continue;
       }
       
+      // Don't clean up health bars for enemies that were recently in combat
+      if (this.recentCombatEnemies.has(enemy)) {
+        continue;
+      }
+      
       // Calculate distance to player
       const playerGridX = Math.floor(player.x / tileSize);
       const playerGridY = Math.floor(player.y / tileSize);
       const distance = Math.abs(enemy.x - playerGridX) + Math.abs(enemy.y - playerGridY);
       
-      // Hide health bars for enemies that are not adjacent to player (not in combat range)
-      if (distance > 1) {
+      // Only hide health bars for enemies that are far from player AND not recently in combat
+      if (distance > 2) { // Increased distance threshold to be less aggressive
         this.hideEnemyHealthBar(enemy);
       }
     }
