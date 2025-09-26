@@ -19,6 +19,7 @@ let currentLevel = 1; // Track current level
 let player = null;
 let enemies = [];
 let goldItems = [];
+let healthPotions = []; // Add health potions array
 let spriteManager = null;
 let movementSystem = null;
 let combatSystem = null;
@@ -256,6 +257,7 @@ async function startGame() {
   
   enemies = [];
   goldItems = [];
+  healthPotions = []; // Reset health potions
 
   let playerPlaced = false;
   
@@ -317,6 +319,45 @@ async function startGame() {
     }
     
     enemies.push(enemy);
+  }
+
+  // Place health potions randomly on the map (2-3 potions per level)
+  const remainingFloorTiles = [];
+  for (let i = 0; i < dungeon.tiles.length; i++) {
+    for (let j = 0; j < dungeon.tiles[i].length; j++) {
+      if (dungeon.tiles[i][j].type === 'floor') {
+        // Don't place where player is
+        const playerGridX = Math.floor(player.x / tileSize);
+        const playerGridY = Math.floor(player.y / tileSize);
+        // Don't place where enemies are
+        const enemyAtPos = enemies.find(enemy => enemy.x === i && enemy.y === j);
+        if (!(i === playerGridX && j === playerGridY) && !enemyAtPos) {
+          remainingFloorTiles.push({ x: i, y: j });
+        }
+      }
+    }
+  }
+
+  // Place 2-3 health potions randomly
+  const numPotions = Math.min(Math.floor(Math.random() * 2) + 2, remainingFloorTiles.length);
+  for (let i = 0; i < numPotions; i++) {
+    const randomIndex = Math.floor(Math.random() * remainingFloorTiles.length);
+    const tile = remainingFloorTiles.splice(randomIndex, 1)[0];
+    
+    const potion = {
+      x: tile.x,
+      y: tile.y,
+      healAmount: 25 + Math.floor(Math.random() * 26), // Heal 25-50 HP
+      sprite: null
+    };
+    
+    const potionSprite = spriteManager.createHealthPotionSprite(tile.x, tile.y, tileSize);
+    if (potionSprite) {
+      potion.sprite = potionSprite;
+      mapContainer.addChild(potionSprite);
+    }
+    
+    healthPotions.push(potion);
   }
 
   // Note: Finish tile will be placed when all enemies are defeated
@@ -420,8 +461,9 @@ async function triggerSingleStepMovement(direction) {
   
   // Regular movement to empty tiles
   if (tileType === 'floor' || tileType === 'door' || tileType === 'finish') {
-    // Check for gold collection first
+    // Check for gold and health potion collection first
     collectGold(moveX, moveY);
+    collectHealthPotion(moveX, moveY);
     
     player.setPosition(newX, newY);
 
@@ -594,11 +636,37 @@ function collectGold(gridX, gridY) {
   return false;
 }
 
+function collectHealthPotion(gridX, gridY) {
+  const potionIndex = healthPotions.findIndex(potion => potion.x === gridX && potion.y === gridY);
+  if (potionIndex !== -1) {
+    const potion = healthPotions[potionIndex];
+    
+    // Heal the player
+    const oldHealth = player.health;
+    player.heal(potion.healAmount);
+    const actualHealing = player.health - oldHealth;
+    
+    // Remove potion from map
+    mapContainer.removeChild(potion.sprite);
+    healthPotions.splice(potionIndex, 1);
+    
+    // Update health display
+    updateHealthDisplay();
+    
+    // Show healing effect message
+    console.log(`Healed ${actualHealing} HP! Current health: ${player.health}/${player.maxHealth}`);
+    
+    return true;
+  }
+  return false;
+}
+
 function updateGlobalDebugVars() {
   if (typeof window !== 'undefined') {
     window.player = player;
     window.enemies = enemies;
     window.goldItems = goldItems;
+    window.healthPotions = healthPotions;
     window.combatSystem = combatSystem;
     window.tileSize = tileSize;
     window.dungeon = dungeon;
@@ -702,7 +770,7 @@ function showGameOverScreen() {
     <h1 style="color: #ff0000; font-size: 48px; margin-bottom: 20px;">💀 GAME OVER 💀</h1>
     <p style="font-size: 24px; margin-bottom: 10px;">You reached level ${currentLevel}</p>
     <p style="font-size: 18px; margin-bottom: 30px; color: #ffff00;">Gold collected: ${player ? player.goldCollected : 0}</p>
-    <button onclick="resetGame()" style="
+    <button id="try-again-btn" style="
       padding: 15px 30px;
       font-size: 18px;
       background: #8B0000;
@@ -714,6 +782,14 @@ function showGameOverScreen() {
       font-weight: bold;
     ">Try Again</button>
   `;
+  
+  // Add click event listener to the button
+  const tryAgainBtn = gameOverScreen.querySelector('#try-again-btn');
+  if (tryAgainBtn) {
+    tryAgainBtn.addEventListener('click', () => {
+      resetGame();
+    });
+  }
   
   gameOverScreen.style.display = 'flex';
 }
@@ -738,6 +814,7 @@ function resetGame() {
   dungeon = null;
   enemies = [];
   goldItems = [];
+  healthPotions = []; // Reset health potions
   isAttacking = false;
   
   if (movementSystem) {
