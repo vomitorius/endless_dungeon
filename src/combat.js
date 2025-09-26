@@ -40,6 +40,8 @@ export class Combat {
       } else {
         // Both survive - enemy wins this round
         combatResult = { winner: 'enemy', goldEarned: 0 };
+        // Hide enemy health bar since combat is over
+        this.hideEnemyHealthBar(enemy);
       }
     }
     
@@ -127,6 +129,30 @@ export class Combat {
       healthBar.remove();
     }
     this.activeEnemyHealthBars.clear();
+  }
+
+  // Clean up orphaned health bars (for enemies that moved or are no longer in combat)
+  cleanupOrphanedHealthBars() {
+    // Create a copy of the health bars to iterate over
+    const healthBarsToCheck = new Map(this.activeEnemyHealthBars);
+    
+    for (const [enemy, healthBar] of healthBarsToCheck) {
+      // Remove health bars for dead enemies or enemies that are far from player
+      if (!enemy.isAlive || !enemy.sprite) {
+        this.hideEnemyHealthBar(enemy);
+        continue;
+      }
+      
+      // Calculate distance to player
+      const playerGridX = Math.floor(player.x / tileSize);
+      const playerGridY = Math.floor(player.y / tileSize);
+      const distance = Math.abs(enemy.x - playerGridX) + Math.abs(enemy.y - playerGridY);
+      
+      // Hide health bars for enemies that are not adjacent to player (not in combat range)
+      if (distance > 1) {
+        this.hideEnemyHealthBar(enemy);
+      }
+    }
   }
 
   // Helper function to create delays

@@ -90,6 +90,11 @@ class EnemyAI {
         this.moveEnemyTowardsPlayer(enemy, playerGridX, playerGridY);
       }
     });
+    
+    // Clean up orphaned health bars after enemy movement
+    if (combatSystem) {
+      combatSystem.cleanupOrphanedHealthBars();
+    }
   }
 
   moveEnemyTowardsPlayer(enemy, playerGridX, playerGridY) {
@@ -466,6 +471,11 @@ async function triggerSingleStepMovement(direction) {
     collectHealthPotion(moveX, moveY);
     
     player.setPosition(newX, newY);
+    
+    // Clean up health bars when player moves
+    if (combatSystem) {
+      combatSystem.cleanupOrphanedHealthBars();
+    }
 
     if (tileType === 'finish') {
       // Level completed - advance to next level silently
