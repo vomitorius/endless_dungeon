@@ -14,6 +14,7 @@ let dungeon = null;
 let tileSize = 32;
 let speed = tileSize;
 let currentLevel = 1; // Track current level
+let isGameOver = false; // Prevent double game over triggers
 
 // Game systems
 let player = null;
@@ -186,7 +187,7 @@ class EnemyAI {
     // Update health display
     updateHealthDisplay();
     
-    if (!player.isAlive) {
+    if (!player.isAlive && !isGameOver) {
       console.log('Player defeated by enemy AI!');
       setTimeout(() => {
         showGameOverScreen();
@@ -467,7 +468,7 @@ async function triggerSingleStepMovement(direction) {
       // Update health display after taking damage
       updateHealthDisplay();
       // Player lost the combat but check if they're actually dead
-      if (!player.isAlive || player.health <= 0) {
+      if ((!player.isAlive || player.health <= 0) && !isGameOver) {
         // Player is actually defeated - show game over screen
         console.log('Player defeated! Game over.');
         setTimeout(() => {
@@ -554,7 +555,7 @@ async function triggerSwordAttack() {
         // Update health display after taking damage
         updateHealthDisplay();
         // Player lost the combat but check if they're actually dead
-        if (!player.isAlive || player.health <= 0) {
+        if ((!player.isAlive || player.health <= 0) && !isGameOver) {
           // Player is actually defeated - show game over screen
           console.log('Player defeated! Game over.');
           setTimeout(() => {
@@ -770,6 +771,10 @@ function updateHealthDisplay() {
 }
 
 function showGameOverScreen() {
+  // Prevent multiple game over screens
+  if (isGameOver) return;
+  isGameOver = true;
+  
   // Create game over overlay
   let gameOverScreen = document.getElementById('game-over-screen');
   if (!gameOverScreen) {
@@ -815,7 +820,15 @@ function showGameOverScreen() {
   const tryAgainBtn = gameOverScreen.querySelector('#try-again-btn');
   if (tryAgainBtn) {
     tryAgainBtn.addEventListener('click', () => {
-      resetGame();
+      // Disable button to prevent multiple clicks
+      tryAgainBtn.disabled = true;
+      tryAgainBtn.style.opacity = '0.5';
+      tryAgainBtn.textContent = 'Loading...';
+      
+      // Small delay to prevent race conditions
+      setTimeout(() => {
+        resetGame();
+      }, 100);
     });
   }
   
@@ -832,6 +845,9 @@ function hideGameOverScreen() {
 function resetGame() {
   // Hide game over screen
   hideGameOverScreen();
+  
+  // Reset game over flag
+  isGameOver = false;
   
   // Reset level counter
   currentLevel = 1;
