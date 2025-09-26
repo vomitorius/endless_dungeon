@@ -261,12 +261,17 @@ async function triggerSingleStepMovement(direction) {
       
       updateGoldDisplay();
     } else if (combatResult && combatResult.winner === 'enemy') {
-      // Player lost - game over or respawn logic could go here
-      console.log('Player defeated! Game over.');
-      // For now, let's just reset the game
-      setTimeout(() => {
-        resetGame();
-      }, 1000);
+      // Player lost the combat but check if they're actually dead
+      if (!player.isAlive || player.health <= 0) {
+        // Player is actually defeated
+        console.log('Player defeated! Game over.');
+        setTimeout(() => {
+          resetGame();
+        }, 1000);
+      } else {
+        // Player survived but took damage - continue game
+        console.log(`Player lost combat but survived with ${player.health} health`);
+      }
     }
     
     return;
@@ -337,11 +342,17 @@ async function triggerSwordAttack() {
         
         updateGoldDisplay();
       } else if (combatResult && combatResult.winner === 'enemy') {
-        // Player lost
-        console.log('Player defeated! Game over.');
-        setTimeout(() => {
-          resetGame();
-        }, 1000);
+        // Player lost the combat but check if they're actually dead
+        if (!player.isAlive || player.health <= 0) {
+          // Player is actually defeated
+          console.log('Player defeated! Game over.');
+          setTimeout(() => {
+            resetGame();
+          }, 1000);
+        } else {
+          // Player survived but took damage - continue game
+          console.log(`Player lost combat but survived with ${player.health} health`);
+        }
       }
       
       break; // Only attack one enemy per sword strike
@@ -383,6 +394,9 @@ function updateGlobalDebugVars() {
     window.enemies = enemies;
     window.goldItems = goldItems;
     window.combatSystem = combatSystem;
+    window.tileSize = tileSize;
+    window.dungeon = dungeon;
+    window.movementSystem = movementSystem;
   }
 }
 
