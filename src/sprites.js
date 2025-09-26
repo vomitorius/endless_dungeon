@@ -45,14 +45,11 @@ export class SpriteManager {
       return null;
     }
 
-    const baseTexture = this.textures.fulltilesheet.baseTexture;
-    const rectangle = new PIXI.Rectangle(
-      coordX * tileSize,
-      coordY * tileSize,
-      tileSize,
-      tileSize,
+    const texture = new PIXI.Texture(
+      this.textures.fulltilesheet,
+      new PIXI.Rectangle(coordX * tileSize, coordY * tileSize, tileSize, tileSize)
     );
-    return new PIXI.Texture(baseTexture, rectangle);
+    return texture;
   }
 
   // Create enemy sprite
