@@ -22,6 +22,7 @@ let goldItems = [];
 let spriteManager = null;
 let movementSystem = null;
 let combatSystem = null;
+let enemyAI = null;
 
 // UI and interaction
 let isAttacking = false;
@@ -36,6 +37,137 @@ function setResponsiveCanvasSize() {
   if (canvasElement && canvasElement.style) {
     canvasElement.style.maxWidth = '100%';
     canvasElement.style.height = 'auto';
+  }
+}
+
+// Enemy AI system for Diablo-like movement
+class EnemyAI {
+  constructor() {
+    this.moveInterval = 1000; // Move every 1 second
+    this.lastMoveTime = 0;
+    this.isRunning = false;
+  }
+
+  start() {
+    this.isRunning = true;
+    this.update();
+  }
+
+  stop() {
+    this.isRunning = false;
+  }
+
+  update() {
+    if (!this.isRunning || !player || !dungeon) {
+      if (this.isRunning) {
+        setTimeout(() => this.update(), 100);
+      }
+      return;
+    }
+
+    const currentTime = Date.now();
+    if (currentTime - this.lastMoveTime >= this.moveInterval) {
+      this.moveEnemies();
+      this.lastMoveTime = currentTime;
+    }
+
+    setTimeout(() => this.update(), 100);
+  }
+
+  moveEnemies() {
+    const playerGridX = Math.floor(player.x / tileSize);
+    const playerGridY = Math.floor(player.y / tileSize);
+
+    enemies.forEach(enemy => {
+      if (!enemy.isAlive) return;
+
+      // Calculate distance to player
+      const distance = Math.abs(enemy.x - playerGridX) + Math.abs(enemy.y - playerGridY);
+      
+      // Only move if player is within 8 tiles (visible range)
+      if (distance <= 8) {
+        this.moveEnemyTowardsPlayer(enemy, playerGridX, playerGridY);
+      }
+    });
+  }
+
+  moveEnemyTowardsPlayer(enemy, playerGridX, playerGridY) {
+    const dx = playerGridX - enemy.x;
+    const dy = playerGridY - enemy.y;
+
+    // If adjacent to player, attack instead of move
+    if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1 && (dx !== 0 || dy !== 0)) {
+      this.enemyAttackPlayer(enemy);
+      return;
+    }
+
+    // Calculate next move
+    let targetX = enemy.x;
+    let targetY = enemy.y;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      targetX += dx > 0 ? 1 : -1;
+    } else if (dy !== 0) {
+      targetY += dy > 0 ? 1 : -1;
+    }
+
+    // Check if target position is valid
+    if (this.canMoveToPosition(targetX, targetY, enemy)) {
+      enemy.x = targetX;
+      enemy.y = targetY;
+      if (enemy.sprite) {
+        enemy.sprite.x = targetX * tileSize;
+        enemy.sprite.y = targetY * tileSize;
+      }
+    }
+  }
+
+  canMoveToPosition(x, y, movingEnemy) {
+    // Check bounds
+    if (x < 0 || x >= dungeon.tiles.length || y < 0 || y >= dungeon.tiles[0].length) {
+      return false;
+    }
+
+    // Check if tile is walkable
+    const tileType = dungeon.tiles[x][y].type;
+    if (tileType === 'wall') {
+      return false;
+    }
+
+    // Check if another enemy is already there
+    const enemyAtPos = enemies.find(enemy => 
+      enemy !== movingEnemy && enemy.x === x && enemy.y === y && enemy.isAlive
+    );
+    if (enemyAtPos) {
+      return false;
+    }
+
+    // Check if player is there (they can occupy same space for combat)
+    const playerGridX = Math.floor(player.x / tileSize);
+    const playerGridY = Math.floor(player.y / tileSize);
+    if (x === playerGridX && y === playerGridY) {
+      return false;
+    }
+
+    return true;
+  }
+
+  async enemyAttackPlayer(enemy) {
+    // Enemy attacks player - simulate combat
+    console.log(`${enemy.name} attacks player!`);
+    
+    const damage = Math.max(1, enemy.damage - player.shield);
+    const damageResult = player.takeDamage(damage);
+    
+    // Update health display
+    updateHealthDisplay();
+    
+    if (!player.isAlive) {
+      console.log('Player defeated by enemy AI!');
+      setTimeout(() => {
+        showGameOverScreen();
+      }, 500);
+    }
   }
 }
 
@@ -85,6 +217,10 @@ async function startGame() {
   
   if (!combatSystem) {
     combatSystem = new Combat();
+  }
+  
+  if (!enemyAI) {
+    enemyAI = new EnemyAI();
   }
   
   spriteManager.setTileSize(tileSize);
@@ -184,6 +320,9 @@ async function startGame() {
   }
 
   // Note: Finish tile will be placed when all enemies are defeated
+  
+  // Start enemy AI system
+  enemyAI.start();
 
   app.ticker.add(() => {
     if (player && player.sprite) {
@@ -608,6 +747,10 @@ function resetGame() {
   
   if (combatSystem) {
     combatSystem.cleanupHealthBars();
+  }
+  
+  if (enemyAI) {
+    enemyAI.stop();
   }
   
   mapContainer.removeChildren();
