@@ -38,16 +38,18 @@ export class SpriteManager {
     }
   }
 
-  // Create sprite from tilesheet coordinates
-  createSpriteFromTilesheet(coordX, coordY, tileSize = 32) {
+  // Create sprite from tilesheet coordinates (always use 32x32 for cutting from original tilesheet)
+  createSpriteFromTilesheet(coordX, coordY) {
     if (!this.textures.fulltilesheet) {
       console.error('Fulltilesheet not loaded');
       return null;
     }
 
+    // Always use 32x32 for cutting from the original tilesheet
+    const ORIGINAL_TILE_SIZE = 32;
     const texture = new PIXI.Texture(
       this.textures.fulltilesheet,
-      new PIXI.Rectangle(coordX * tileSize, coordY * tileSize, tileSize, tileSize)
+      new PIXI.Rectangle(coordX * ORIGINAL_TILE_SIZE, coordY * ORIGINAL_TILE_SIZE, ORIGINAL_TILE_SIZE, ORIGINAL_TILE_SIZE)
     );
     return texture;
   }
@@ -55,7 +57,7 @@ export class SpriteManager {
   // Create enemy sprite
   createEnemySprite(gridX, gridY, enemyType = 0, tileSize) {
     const enemyCoords = spriteCoords.enemies[enemyType] || spriteCoords.enemies[0];
-    const texture = this.createSpriteFromTilesheet(enemyCoords.x, enemyCoords.y, tileSize);
+    const texture = this.createSpriteFromTilesheet(enemyCoords.x, enemyCoords.y);
     if (!texture) return null;
     
     const sprite = new PIXI.Sprite(texture);
@@ -69,7 +71,7 @@ export class SpriteManager {
   // Create gold sprite
   createGoldSprite(gridX, gridY, tileSize) {
     const goldCoords = spriteCoords.gold;
-    const texture = this.createSpriteFromTilesheet(goldCoords.x, goldCoords.y, tileSize);
+    const texture = this.createSpriteFromTilesheet(goldCoords.x, goldCoords.y);
     if (!texture) return null;
     
     const sprite = new PIXI.Sprite(texture);
