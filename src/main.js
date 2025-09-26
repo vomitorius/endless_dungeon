@@ -243,16 +243,15 @@ async function triggerSingleStepMovement(direction) {
     const combatResult = await combatSystem.performCombat(player, enemy);
     
     if (combatResult && combatResult.winner === 'player') {
-      // Player won - remove enemy and drop gold
+      // Player won - remove enemy and drop gold on adjacent tile
       mapContainer.removeChild(enemy.sprite);
       enemies.splice(enemyIndex, 1);
       
-      // Player collects gold and moves to the tile
-      player.collectGold(combatResult.goldEarned);
+      // Player moves to the tile (no automatic gold collection)
       player.setPosition(newX, newY);
       
-      // Drop some gold on the ground too
-      dropGold(moveX, moveY);
+      // Drop gold on an adjacent tile instead of giving it automatically
+      dropGold(moveX, moveY, true);
       
       // Check if all enemies defeated
       if (enemies.length === 0) {
@@ -325,15 +324,12 @@ async function triggerSwordAttack() {
       const combatResult = await combatSystem.performCombat(player, enemy);
       
       if (combatResult && combatResult.winner === 'player') {
-        // Player won - remove enemy and drop gold
+        // Player won - remove enemy and drop gold on adjacent tile
         mapContainer.removeChild(enemy.sprite);
         enemies.splice(enemyIndex, 1);
         
-        // Player collects gold
-        player.collectGold(combatResult.goldEarned);
-        
-        // Drop some gold on the ground too
-        dropGold(pos.x, pos.y);
+        // Drop gold on an adjacent tile instead of giving it automatically
+        dropGold(pos.x, pos.y, true);
         
         // Check if all enemies defeated
         if (enemies.length === 0) {
@@ -360,19 +356,84 @@ async function triggerSwordAttack() {
   }
 }
 
-function dropGold(gridX, gridY) {
+function dropGold(gridX, gridY, useAdjacentTile = false) {
+  let targetX = gridX;
+  let targetY = gridY;
+  
+  // If useAdjacentTile is true, find an adjacent empty tile
+  if (useAdjacentTile) {
+    const adjacentTile = findAdjacentEmptyTile(gridX, gridY);
+    if (adjacentTile) {
+      targetX = adjacentTile.x;
+      targetY = adjacentTile.y;
+    }
+    // If no adjacent tile found, fall back to original position
+  }
+  
   const goldAmount = generateRandomGold();
-  const goldSprite = spriteManager.createGoldSprite(gridX, gridY, tileSize);
+  const goldSprite = spriteManager.createGoldSprite(targetX, targetY, tileSize);
   if (goldSprite) {
     const goldItem = {
-      x: gridX,
-      y: gridY,
+      x: targetX,
+      y: targetY,
       amount: goldAmount,
       sprite: goldSprite
     };
     goldItems.push(goldItem);
     mapContainer.addChild(goldSprite);
   }
+}
+
+// Find an adjacent empty tile for dropping gold
+function findAdjacentEmptyTile(gridX, gridY) {
+  const adjacentPositions = [
+    { x: gridX - 1, y: gridY },     // left
+    { x: gridX + 1, y: gridY },     // right  
+    { x: gridX, y: gridY - 1 },     // up
+    { x: gridX, y: gridY + 1 },     // down
+    { x: gridX - 1, y: gridY - 1 }, // up-left
+    { x: gridX + 1, y: gridY - 1 }, // up-right
+    { x: gridX - 1, y: gridY + 1 }, // down-left
+    { x: gridX + 1, y: gridY + 1 }  // down-right
+  ];
+  
+  // Shuffle the positions to get random selection
+  for (let i = adjacentPositions.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [adjacentPositions[i], adjacentPositions[j]] = [adjacentPositions[j], adjacentPositions[i]];
+  }
+  
+  for (const pos of adjacentPositions) {
+    // Check if position is within bounds
+    if (pos.x < 0 || pos.x >= dungeon.tiles.length ||
+        pos.y < 0 || pos.y >= dungeon.tiles[0].length) {
+      continue;
+    }
+    
+    const tileType = dungeon.tiles[pos.x][pos.y].type;
+    
+    // Check if tile is walkable (floor or door)
+    if (tileType !== 'floor' && tileType !== 'door') {
+      continue;
+    }
+    
+    // Check if there's already an enemy at this position
+    const enemyAtPos = enemies.find(enemy => enemy.x === pos.x && enemy.y === pos.y);
+    if (enemyAtPos) {
+      continue;
+    }
+    
+    // Check if there's already gold at this position
+    const goldAtPos = goldItems.find(gold => gold.x === pos.x && gold.y === pos.y);
+    if (goldAtPos) {
+      continue;
+    }
+    
+    // This position is suitable
+    return pos;
+  }
+  
+  return null; // No suitable adjacent tile found
 }
 
 function collectGold(gridX, gridY) {

@@ -162,7 +162,7 @@ export class Combat {
           You defeated the ${enemy.name}!
         </div>
         <div style="color: #ffd700;">
-          💰 Earned ${result.goldEarned} gold!
+          💰 Dropped ${result.goldEarned} gold on nearby tile!
         </div>
       `;
     } else {
