@@ -11,6 +11,7 @@ export const spriteCoords = {
     { x: 5, y: 1 },   // Sixth enemy type
   ],
   gold: { x: 0, y: 10 }, // Gold coin sprite
+  healthPotion: { x: 1, y: 10 }, // Health potion sprite (next to gold)
 };
 
 // Texture management
@@ -82,7 +83,19 @@ export class SpriteManager {
     return sprite;
   }
 
-  // Create generic sprite
+  // Create health potion sprite
+  createHealthPotionSprite(gridX, gridY, tileSize) {
+    const potionCoords = spriteCoords.healthPotion;
+    const texture = this.createSpriteFromTilesheet(potionCoords.x, potionCoords.y);
+    if (!texture) return null;
+    
+    const sprite = new PIXI.Sprite(texture);
+    sprite.width = tileSize;
+    sprite.height = tileSize;
+    sprite.x = gridX * tileSize;
+    sprite.y = gridY * tileSize;
+    return sprite;
+  }
   createSprite(type, gridX, gridY, tileSize) {
     // Use individual texture files for basic sprites (wall, door, knight, finish)
     if (this.textures[type]) {

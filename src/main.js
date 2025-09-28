@@ -13,14 +13,18 @@ let mapContainer;
 let dungeon = null;
 let tileSize = 32;
 let speed = tileSize;
+let currentLevel = 1; // Track current level
+let isGameOver = false; // Prevent double game over triggers
 
 // Game systems
 let player = null;
 let enemies = [];
 let goldItems = [];
+let healthPotions = []; // Add health potions array
 let spriteManager = null;
 let movementSystem = null;
 let combatSystem = null;
+let enemyAI = null;
 
 // UI and interaction
 let isAttacking = false;
@@ -35,6 +39,160 @@ function setResponsiveCanvasSize() {
   if (canvasElement && canvasElement.style) {
     canvasElement.style.maxWidth = '100%';
     canvasElement.style.height = 'auto';
+  }
+}
+
+// Enemy AI system for Diablo-like movement
+class EnemyAI {
+  constructor() {
+    this.moveInterval = 1000; // Move every 1 second
+    this.lastMoveTime = 0;
+    this.isRunning = false;
+  }
+
+  start() {
+    this.isRunning = true;
+    this.update();
+  }
+
+  stop() {
+    this.isRunning = false;
+  }
+
+  update() {
+    if (!this.isRunning || !player || !dungeon) {
+      if (this.isRunning) {
+        setTimeout(() => this.update(), 100);
+      }
+      return;
+    }
+
+    const currentTime = Date.now();
+    if (currentTime - this.lastMoveTime >= this.moveInterval) {
+      this.moveEnemies();
+      this.lastMoveTime = currentTime;
+    }
+
+    setTimeout(() => this.update(), 100);
+  }
+
+  moveEnemies() {
+    const playerGridX = Math.floor(player.x / tileSize);
+    const playerGridY = Math.floor(player.y / tileSize);
+
+    enemies.forEach(enemy => {
+      if (!enemy.isAlive) return;
+
+      // Calculate distance to player
+      const distance = Math.abs(enemy.x - playerGridX) + Math.abs(enemy.y - playerGridY);
+      
+      // Only move if player is within 8 tiles (visible range)
+      if (distance <= 8) {
+        this.moveEnemyTowardsPlayer(enemy, playerGridX, playerGridY);
+      }
+    });
+    
+    // Clean up orphaned health bars after enemy movement
+    if (combatSystem) {
+      combatSystem.cleanupOrphanedHealthBars();
+    }
+  }
+
+  moveEnemyTowardsPlayer(enemy, playerGridX, playerGridY) {
+    const dx = playerGridX - enemy.x;
+    const dy = playerGridY - enemy.y;
+
+    // If adjacent to player, attack instead of move
+    if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1 && (dx !== 0 || dy !== 0)) {
+      this.enemyAttackPlayer(enemy);
+      return;
+    }
+
+    // Calculate next move
+    let targetX = enemy.x;
+    let targetY = enemy.y;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      targetX += dx > 0 ? 1 : -1;
+    } else if (dy !== 0) {
+      targetY += dy > 0 ? 1 : -1;
+    }
+
+    // Check if target position is valid
+    if (this.canMoveToPosition(targetX, targetY, enemy)) {
+      enemy.x = targetX;
+      enemy.y = targetY;
+      if (enemy.sprite) {
+        enemy.sprite.x = targetX * tileSize;
+        enemy.sprite.y = targetY * tileSize;
+      }
+    }
+  }
+
+  canMoveToPosition(x, y, movingEnemy) {
+    // Check bounds
+    if (x < 0 || x >= dungeon.tiles.length || y < 0 || y >= dungeon.tiles[0].length) {
+      return false;
+    }
+
+    // Check if tile is walkable
+    const tileType = dungeon.tiles[x][y].type;
+    if (tileType === 'wall') {
+      return false;
+    }
+
+    // Check if another enemy is already there
+    const enemyAtPos = enemies.find(enemy => 
+      enemy !== movingEnemy && enemy.x === x && enemy.y === y && enemy.isAlive
+    );
+    if (enemyAtPos) {
+      return false;
+    }
+
+    // Check if player is there (they can occupy same space for combat)
+    const playerGridX = Math.floor(player.x / tileSize);
+    const playerGridY = Math.floor(player.y / tileSize);
+    if (x === playerGridX && y === playerGridY) {
+      return false;
+    }
+
+    return true;
+  }
+
+  async enemyAttackPlayer(enemy) {
+    // Enemy attacks player - simulate combat
+    console.log(`${enemy.name} attacks player!`);
+    
+    // Show enemy health bar during attack
+    if (combatSystem) {
+      combatSystem.showEnemyHealthBar(enemy);
+      combatSystem.recentCombatEnemies.add(enemy);
+      
+      // Hide health bar after a delay if enemy moves away
+      setTimeout(() => {
+        const playerGridX = Math.floor(player.x / tileSize);
+        const playerGridY = Math.floor(player.y / tileSize);
+        const distance = Math.abs(enemy.x - playerGridX) + Math.abs(enemy.y - playerGridY);
+        
+        if (distance > 1) {
+          combatSystem.hideEnemyHealthBar(enemy);
+        }
+        combatSystem.recentCombatEnemies.delete(enemy);
+      }, 2000);
+    }
+    
+    const damage = Math.max(1, enemy.damage - player.shield);
+    const damageResult = player.takeDamage(damage);
+    
+    // Update health display
+    updateHealthDisplay();
+    
+    if (!player.isAlive && !isGameOver) {
+      console.log('Player defeated by enemy AI!');
+      setTimeout(() => {
+        showGameOverScreen();
+      }, 500);
+    }
   }
 }
 
@@ -86,6 +244,10 @@ async function startGame() {
     combatSystem = new Combat();
   }
   
+  if (!enemyAI) {
+    enemyAI = new EnemyAI();
+  }
+  
   spriteManager.setTileSize(tileSize);
   
   // Create or update gold counter display
@@ -119,6 +281,7 @@ async function startGame() {
   
   enemies = [];
   goldItems = [];
+  healthPotions = []; // Reset health potions
 
   let playerPlaced = false;
   
@@ -182,7 +345,49 @@ async function startGame() {
     enemies.push(enemy);
   }
 
+  // Place health potions randomly on the map (2-3 potions per level)
+  const remainingFloorTiles = [];
+  for (let i = 0; i < dungeon.tiles.length; i++) {
+    for (let j = 0; j < dungeon.tiles[i].length; j++) {
+      if (dungeon.tiles[i][j].type === 'floor') {
+        // Don't place where player is
+        const playerGridX = Math.floor(player.x / tileSize);
+        const playerGridY = Math.floor(player.y / tileSize);
+        // Don't place where enemies are
+        const enemyAtPos = enemies.find(enemy => enemy.x === i && enemy.y === j);
+        if (!(i === playerGridX && j === playerGridY) && !enemyAtPos) {
+          remainingFloorTiles.push({ x: i, y: j });
+        }
+      }
+    }
+  }
+
+  // Place 2-3 health potions randomly
+  const numPotions = Math.min(Math.floor(Math.random() * 2) + 2, remainingFloorTiles.length);
+  for (let i = 0; i < numPotions; i++) {
+    const randomIndex = Math.floor(Math.random() * remainingFloorTiles.length);
+    const tile = remainingFloorTiles.splice(randomIndex, 1)[0];
+    
+    const potion = {
+      x: tile.x,
+      y: tile.y,
+      healAmount: 25 + Math.floor(Math.random() * 26), // Heal 25-50 HP
+      sprite: null
+    };
+    
+    const potionSprite = spriteManager.createHealthPotionSprite(tile.x, tile.y, tileSize);
+    if (potionSprite) {
+      potion.sprite = potionSprite;
+      mapContainer.addChild(potionSprite);
+    }
+    
+    healthPotions.push(potion);
+  }
+
   // Note: Finish tile will be placed when all enemies are defeated
+  
+  // Start enemy AI system
+  enemyAI.start();
 
   app.ticker.add(() => {
     if (player && player.sprite) {
@@ -260,13 +465,15 @@ async function triggerSingleStepMovement(direction) {
       
       updateGoldDisplay();
     } else if (combatResult && combatResult.winner === 'enemy') {
+      // Update health display after taking damage
+      updateHealthDisplay();
       // Player lost the combat but check if they're actually dead
-      if (!player.isAlive || player.health <= 0) {
-        // Player is actually defeated
+      if ((!player.isAlive || player.health <= 0) && !isGameOver) {
+        // Player is actually defeated - show game over screen
         console.log('Player defeated! Game over.');
         setTimeout(() => {
-          resetGame();
-        }, 1000);
+          showGameOverScreen();
+        }, 500);
       } else {
         // Player survived but took damage - continue game
         console.log(`Player lost combat but survived with ${player.health} health`);
@@ -278,15 +485,22 @@ async function triggerSingleStepMovement(direction) {
   
   // Regular movement to empty tiles
   if (tileType === 'floor' || tileType === 'door' || tileType === 'finish') {
-    // Check for gold collection first
+    // Check for gold and health potion collection first
     collectGold(moveX, moveY);
+    collectHealthPotion(moveX, moveY);
     
     player.setPosition(newX, newY);
+    
+    // Clean up health bars when player moves
+    if (combatSystem) {
+      combatSystem.cleanupOrphanedHealthBars();
+    }
 
     if (tileType === 'finish') {
+      // Level completed - advance to next level silently
+      currentLevel++;
+      console.log(`Level ${currentLevel-1} completed! Advancing to level ${currentLevel}`);
       setTimeout(() => {
-        // eslint-disable-next-line no-undef
-        alert('🎉 Victory! Generating new dungeon...');
         startGame();
       }, 100);
     }
@@ -338,13 +552,15 @@ async function triggerSwordAttack() {
         
         updateGoldDisplay();
       } else if (combatResult && combatResult.winner === 'enemy') {
+        // Update health display after taking damage
+        updateHealthDisplay();
         // Player lost the combat but check if they're actually dead
-        if (!player.isAlive || player.health <= 0) {
-          // Player is actually defeated
+        if ((!player.isAlive || player.health <= 0) && !isGameOver) {
+          // Player is actually defeated - show game over screen
           console.log('Player defeated! Game over.');
           setTimeout(() => {
-            resetGame();
-          }, 1000);
+            showGameOverScreen();
+          }, 500);
         } else {
           // Player survived but took damage - continue game
           console.log(`Player lost combat but survived with ${player.health} health`);
@@ -449,11 +665,37 @@ function collectGold(gridX, gridY) {
   return false;
 }
 
+function collectHealthPotion(gridX, gridY) {
+  const potionIndex = healthPotions.findIndex(potion => potion.x === gridX && potion.y === gridY);
+  if (potionIndex !== -1) {
+    const potion = healthPotions[potionIndex];
+    
+    // Heal the player
+    const oldHealth = player.health;
+    player.heal(potion.healAmount);
+    const actualHealing = player.health - oldHealth;
+    
+    // Remove potion from map
+    mapContainer.removeChild(potion.sprite);
+    healthPotions.splice(potionIndex, 1);
+    
+    // Update health display
+    updateHealthDisplay();
+    
+    // Show healing effect message
+    console.log(`Healed ${actualHealing} HP! Current health: ${player.health}/${player.maxHealth}`);
+    
+    return true;
+  }
+  return false;
+}
+
 function updateGlobalDebugVars() {
   if (typeof window !== 'undefined') {
     window.player = player;
     window.enemies = enemies;
     window.goldItems = goldItems;
+    window.healthPotions = healthPotions;
     window.combatSystem = combatSystem;
     window.tileSize = tileSize;
     window.dungeon = dungeon;
@@ -489,7 +731,7 @@ function updateGoldDisplay() {
   updateGlobalDebugVars();
 }
 
-// Create player health display
+// Create player health display with level counter
 function updateHealthDisplay() {
   let healthDisplay = document.getElementById('health-display');
   if (!healthDisplay) {
@@ -508,6 +750,7 @@ function updateHealthDisplay() {
       border: 2px solid #8B0000;
       z-index: 1000;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      min-width: 120px;
     `;
     document.body.appendChild(healthDisplay);
   }
@@ -518,26 +761,117 @@ function updateHealthDisplay() {
                        healthPercentage > 0.3 ? '#ffff00' : '#ff0000';
     
     healthDisplay.innerHTML = `
-      <div>❤️ Health: ${player.health}/${player.maxHealth}</div>
+      <div>🏰 Level: ${currentLevel}</div>
+      <div style="margin-top: 4px;">❤️ Health: ${player.health}/${player.maxHealth}</div>
       <div style="width: 100px; height: 6px; background: #333; border-radius: 3px; margin-top: 4px;">
-        <div style="width: ${healthPercentage * 100}%; height: 100%; background: ${healthColor}; border-radius: 3px;"></div>
+        <div style="width: ${healthPercentage * 100}%; height: 100%; background: ${healthColor}; border-radius: 3px; transition: width 0.3s ease, background-color 0.3s ease;"></div>
       </div>
     `;
   }
 }
 
+function showGameOverScreen() {
+  // Prevent multiple game over screens
+  if (isGameOver) return;
+  isGameOver = true;
+  
+  // Create game over overlay
+  let gameOverScreen = document.getElementById('game-over-screen');
+  if (!gameOverScreen) {
+    gameOverScreen = document.createElement('div');
+    gameOverScreen.id = 'game-over-screen';
+    gameOverScreen.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 3000;
+      font-family: 'Courier New', monospace;
+      text-align: center;
+    `;
+    document.body.appendChild(gameOverScreen);
+  }
+
+  gameOverScreen.innerHTML = `
+    <h1 style="color: #ff0000; font-size: 48px; margin-bottom: 20px;">💀 GAME OVER 💀</h1>
+    <p style="font-size: 24px; margin-bottom: 10px;">You reached level ${currentLevel}</p>
+    <p style="font-size: 18px; margin-bottom: 30px; color: #ffff00;">Gold collected: ${player ? player.goldCollected : 0}</p>
+    <button id="try-again-btn" style="
+      padding: 15px 30px;
+      font-size: 18px;
+      background: #8B0000;
+      color: white;
+      border: 2px solid #ff0000;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      font-weight: bold;
+    ">Try Again</button>
+  `;
+  
+  // Add click event listener to the button
+  const tryAgainBtn = gameOverScreen.querySelector('#try-again-btn');
+  if (tryAgainBtn) {
+    tryAgainBtn.addEventListener('click', () => {
+      // Disable button to prevent multiple clicks
+      tryAgainBtn.disabled = true;
+      tryAgainBtn.style.opacity = '0.5';
+      tryAgainBtn.textContent = 'Loading...';
+      
+      // Small delay to prevent race conditions
+      setTimeout(() => {
+        resetGame();
+      }, 100);
+    });
+  }
+  
+  gameOverScreen.style.display = 'flex';
+}
+
+function hideGameOverScreen() {
+  const gameOverScreen = document.getElementById('game-over-screen');
+  if (gameOverScreen) {
+    gameOverScreen.style.display = 'none';
+  }
+}
+
 function resetGame() {
+  // Hide game over screen
+  hideGameOverScreen();
+  
+  // Reset game over flag
+  isGameOver = false;
+  
+  // Reset level counter
+  currentLevel = 1;
+  
   if (player) {
     player.reset();
   }
   dungeon = null;
   enemies = [];
   goldItems = [];
+  healthPotions = []; // Reset health potions
   isAttacking = false;
   
   if (movementSystem) {
     movementSystem.clearPressedKeys();
     movementSystem.stopAllMovement();
+  }
+  
+  if (combatSystem) {
+    combatSystem.cleanupHealthBars();
+  }
+  
+  if (enemyAI) {
+    enemyAI.stop();
   }
   
   mapContainer.removeChildren();
