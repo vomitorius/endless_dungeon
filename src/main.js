@@ -285,14 +285,91 @@ async function startGame() {
 
   let playerPlaced = false;
   
-  // Place walls and doors with some variations
+  // Identify rooms using flood fill and assign consistent textures per room
+  const roomMap = []; // Map to track which room each tile belongs to
+  const roomTextures = {}; // Store texture choices for each room
+  let currentRoomId = 0;
+  
+  // Initialize room map
+  for (let i = 0; i < dungeon.tiles.length; i++) {
+    roomMap[i] = [];
+    for (let j = 0; j < dungeon.tiles[i].length; j++) {
+      roomMap[i][j] = -1; // -1 means unassigned
+    }
+  }
+  
+  // Flood fill to identify connected floor regions (rooms)
+  function floodFillRoom(startX, startY, roomId) {
+    const stack = [{x: startX, y: startY}];
+    
+    while (stack.length > 0) {
+      const {x, y} = stack.pop();
+      
+      if (x < 0 || x >= dungeon.tiles.length || y < 0 || y >= dungeon.tiles[0].length) {
+        continue;
+      }
+      
+      if (roomMap[x][y] !== -1) {
+        continue; // Already visited
+      }
+      
+      const tileType = dungeon.tiles[x][y].type;
+      if (tileType !== 'floor' && tileType !== 'door') {
+        continue; // Only flood through floors and doors
+      }
+      
+      roomMap[x][y] = roomId;
+      
+      // Add adjacent tiles to stack
+      stack.push({x: x + 1, y: y});
+      stack.push({x: x - 1, y: y});
+      stack.push({x: x, y: y + 1});
+      stack.push({x: x, y: y - 1});
+    }
+  }
+  
+  // Find all rooms
+  for (let i = 0; i < dungeon.tiles.length; i++) {
+    for (let j = 0; j < dungeon.tiles[i].length; j++) {
+      const tileType = dungeon.tiles[i][j].type;
+      if ((tileType === 'floor' || tileType === 'door') && roomMap[i][j] === -1) {
+        floodFillRoom(i, j, currentRoomId);
+        
+        // Assign random textures for this room
+        roomTextures[currentRoomId] = {
+          wallVariation: Math.random() < 0.5 ? -1 : Math.floor(Math.random() * 3), // -1 means default wall
+          floorDecoration: Math.random() < 0.3 ? Math.floor(Math.random() * 5) : -1 // -1 means no decoration
+        };
+        
+        currentRoomId++;
+      }
+    }
+  }
+  
+  // Place walls and doors with consistent textures per room
   for (let i = 0; i < dungeon.tiles.length; i++) {
     for (let j = 0; j < dungeon.tiles[i].length; j++) {
       const tile = dungeon.tiles[i][j].type;
+      
       if (tile === 'wall') {
-        // 20% chance to use a wall variation
-        if (Math.random() < 0.2) {
-          const variationType = Math.floor(Math.random() * 3);
+        // Find adjacent room to determine wall texture
+        let adjacentRoomId = -1;
+        const directions = [{dx: 1, dy: 0}, {dx: -1, dy: 0}, {dx: 0, dy: 1}, {dx: 0, dy: -1}];
+        
+        for (const {dx, dy} of directions) {
+          const nx = i + dx;
+          const ny = j + dy;
+          if (nx >= 0 && nx < dungeon.tiles.length && ny >= 0 && ny < dungeon.tiles[0].length) {
+            if (roomMap[nx][ny] >= 0) {
+              adjacentRoomId = roomMap[nx][ny];
+              break;
+            }
+          }
+        }
+        
+        // Use the texture variation for the adjacent room
+        if (adjacentRoomId >= 0 && roomTextures[adjacentRoomId].wallVariation >= 0) {
+          const variationType = roomTextures[adjacentRoomId].wallVariation;
           const sprite = spriteManager.createWallVariationSprite(i, j, variationType, tileSize);
           if (sprite) {
             mapContainer.addChild(sprite);
@@ -309,9 +386,11 @@ async function startGame() {
           mapContainer.addChild(sprite);
         }
       } else if (tile === 'floor') {
-        // 10% chance to add floor decoration
-        if (Math.random() < 0.1) {
-          const decorationType = Math.floor(Math.random() * 5);
+        const roomId = roomMap[i][j];
+        
+        // Add floor decoration based on room's decoration choice
+        if (roomId >= 0 && roomTextures[roomId].floorDecoration >= 0) {
+          const decorationType = roomTextures[roomId].floorDecoration;
           const sprite = spriteManager.createFloorDecorationSprite(i, j, decorationType, tileSize);
           if (sprite) {
             mapContainer.addChild(sprite);
