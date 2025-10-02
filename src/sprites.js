@@ -17,17 +17,13 @@ export const spriteCoords = {
     { x: 11, y: 10 }, // Ruby gem
     { x: 12, y: 10 }, // Emerald gem
   ],
-  floorDecorations: [
-    { x: 0, y: 6 },   // Floor decoration variant 1
-    { x: 1, y: 6 },   // Floor decoration variant 2
-    { x: 2, y: 6 },   // Floor decoration variant 3
-    { x: 0, y: 9 },   // Small rock/debris
-    { x: 1, y: 9 },   // Small item on floor
-  ],
-  wallVariations: [
-    { x: 4, y: 7 },   // Wall variant 1
-    { x: 5, y: 7 },   // Wall variant 2
-    { x: 6, y: 7 },   // Wall variant 3
+  floorTextures: [
+    { x: 0, y: 6 },   // Floor texture variant 1
+    { x: 1, y: 6 },   // Floor texture variant 2
+    { x: 2, y: 6 },   // Floor texture variant 3
+    { x: 3, y: 6 },   // Floor texture variant 4
+    { x: 4, y: 6 },   // Floor texture variant 5
+    { x: 5, y: 6 },   // Floor texture variant 6
   ],
 };
 
@@ -128,24 +124,10 @@ export class SpriteManager {
     return sprite;
   }
 
-  // Create floor decoration sprite
-  createFloorDecorationSprite(gridX, gridY, decorationType = 0, tileSize) {
-    const decorationCoords = spriteCoords.floorDecorations[decorationType] || spriteCoords.floorDecorations[0];
-    const texture = this.createSpriteFromTilesheet(decorationCoords.x, decorationCoords.y);
-    if (!texture) return null;
-    
-    const sprite = new PIXI.Sprite(texture);
-    sprite.width = tileSize;
-    sprite.height = tileSize;
-    sprite.x = gridX * tileSize;
-    sprite.y = gridY * tileSize;
-    return sprite;
-  }
-
-  // Create wall variation sprite
-  createWallVariationSprite(gridX, gridY, variationType = 0, tileSize) {
-    const wallCoords = spriteCoords.wallVariations[variationType] || spriteCoords.wallVariations[0];
-    const texture = this.createSpriteFromTilesheet(wallCoords.x, wallCoords.y);
+  // Create floor texture sprite
+  createFloorTextureSprite(gridX, gridY, textureType = 0, tileSize) {
+    const floorCoords = spriteCoords.floorTextures[textureType] || spriteCoords.floorTextures[0];
+    const texture = this.createSpriteFromTilesheet(floorCoords.x, floorCoords.y);
     if (!texture) return null;
     
     const sprite = new PIXI.Sprite(texture);

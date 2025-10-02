@@ -335,10 +335,9 @@ async function startGame() {
       if ((tileType === 'floor' || tileType === 'door') && roomMap[i][j] === -1) {
         floodFillRoom(i, j, currentRoomId);
         
-        // Assign random textures for this room
+        // Assign random floor texture for this room (each room gets a different texture)
         roomTextures[currentRoomId] = {
-          wallVariation: Math.random() < 0.5 ? -1 : Math.floor(Math.random() * 3), // -1 means default wall
-          floorDecoration: Math.random() < 0.3 ? Math.floor(Math.random() * 5) : -1 // -1 means no decoration
+          floorTexture: Math.floor(Math.random() * 6) // Random floor texture (0-5)
         };
         
         currentRoomId++;
@@ -346,39 +345,16 @@ async function startGame() {
     }
   }
   
-  // Place walls and doors with consistent textures per room
+  // Place walls, doors, and floors with consistent textures per room
   for (let i = 0; i < dungeon.tiles.length; i++) {
     for (let j = 0; j < dungeon.tiles[i].length; j++) {
       const tile = dungeon.tiles[i][j].type;
       
       if (tile === 'wall') {
-        // Find adjacent room to determine wall texture
-        let adjacentRoomId = -1;
-        const directions = [{dx: 1, dy: 0}, {dx: -1, dy: 0}, {dx: 0, dy: 1}, {dx: 0, dy: -1}];
-        
-        for (const {dx, dy} of directions) {
-          const nx = i + dx;
-          const ny = j + dy;
-          if (nx >= 0 && nx < dungeon.tiles.length && ny >= 0 && ny < dungeon.tiles[0].length) {
-            if (roomMap[nx][ny] >= 0) {
-              adjacentRoomId = roomMap[nx][ny];
-              break;
-            }
-          }
-        }
-        
-        // Use the texture variation for the adjacent room
-        if (adjacentRoomId >= 0 && roomTextures[adjacentRoomId].wallVariation >= 0) {
-          const variationType = roomTextures[adjacentRoomId].wallVariation;
-          const sprite = spriteManager.createWallVariationSprite(i, j, variationType, tileSize);
-          if (sprite) {
-            mapContainer.addChild(sprite);
-          }
-        } else {
-          const sprite = spriteManager.createSprite(tile, i, j, tileSize);
-          if (sprite) {
-            mapContainer.addChild(sprite);
-          }
+        // Always use default wall texture (no variations)
+        const sprite = spriteManager.createSprite(tile, i, j, tileSize);
+        if (sprite) {
+          mapContainer.addChild(sprite);
         }
       } else if (tile === 'door') {
         const sprite = spriteManager.createSprite(tile, i, j, tileSize);
@@ -388,10 +364,10 @@ async function startGame() {
       } else if (tile === 'floor') {
         const roomId = roomMap[i][j];
         
-        // Add floor decoration based on room's decoration choice
-        if (roomId >= 0 && roomTextures[roomId].floorDecoration >= 0) {
-          const decorationType = roomTextures[roomId].floorDecoration;
-          const sprite = spriteManager.createFloorDecorationSprite(i, j, decorationType, tileSize);
+        // Add floor texture based on room (each room has its own texture)
+        if (roomId >= 0) {
+          const textureType = roomTextures[roomId].floorTexture;
+          const sprite = spriteManager.createFloorTextureSprite(i, j, textureType, tileSize);
           if (sprite) {
             mapContainer.addChild(sprite);
           }
