@@ -285,14 +285,92 @@ async function startGame() {
 
   let playerPlaced = false;
   
-  // Place walls and doors
+  // Identify rooms using flood fill and assign consistent textures per room
+  const roomMap = []; // Map to track which room each tile belongs to
+  const roomTextures = {}; // Store texture choices for each room
+  let currentRoomId = 0;
+  
+  // Initialize room map
+  for (let i = 0; i < dungeon.tiles.length; i++) {
+    roomMap[i] = [];
+    for (let j = 0; j < dungeon.tiles[i].length; j++) {
+      roomMap[i][j] = -1; // -1 means unassigned
+    }
+  }
+  
+  // Flood fill to identify connected floor regions (rooms)
+  function floodFillRoom(startX, startY, roomId) {
+    const stack = [{x: startX, y: startY}];
+    
+    while (stack.length > 0) {
+      const {x, y} = stack.pop();
+      
+      if (x < 0 || x >= dungeon.tiles.length || y < 0 || y >= dungeon.tiles[0].length) {
+        continue;
+      }
+      
+      if (roomMap[x][y] !== -1) {
+        continue; // Already visited
+      }
+      
+      const tileType = dungeon.tiles[x][y].type;
+      if (tileType !== 'floor' && tileType !== 'door') {
+        continue; // Only flood through floors and doors
+      }
+      
+      roomMap[x][y] = roomId;
+      
+      // Add adjacent tiles to stack
+      stack.push({x: x + 1, y: y});
+      stack.push({x: x - 1, y: y});
+      stack.push({x: x, y: y + 1});
+      stack.push({x: x, y: y - 1});
+    }
+  }
+  
+  // Find all rooms
+  for (let i = 0; i < dungeon.tiles.length; i++) {
+    for (let j = 0; j < dungeon.tiles[i].length; j++) {
+      const tileType = dungeon.tiles[i][j].type;
+      if ((tileType === 'floor' || tileType === 'door') && roomMap[i][j] === -1) {
+        floodFillRoom(i, j, currentRoomId);
+        
+        // Assign random floor texture for this room (each room gets a different texture)
+        roomTextures[currentRoomId] = {
+          floorTexture: Math.floor(Math.random() * 6) // Random floor texture (0-5)
+        };
+        
+        currentRoomId++;
+      }
+    }
+  }
+  
+  // Place walls, doors, and floors with consistent textures per room
   for (let i = 0; i < dungeon.tiles.length; i++) {
     for (let j = 0; j < dungeon.tiles[i].length; j++) {
       const tile = dungeon.tiles[i][j].type;
-      if (tile === 'wall' || tile === 'door') {
+      
+      if (tile === 'wall') {
+        // Always use default wall texture (no variations)
         const sprite = spriteManager.createSprite(tile, i, j, tileSize);
         if (sprite) {
           mapContainer.addChild(sprite);
+        }
+      } else if (tile === 'door') {
+        const sprite = spriteManager.createSprite(tile, i, j, tileSize);
+        if (sprite) {
+          mapContainer.addChild(sprite);
+        }
+      } else if (tile === 'floor') {
+        const roomId = roomMap[i][j];
+        
+        // Add floor texture based on room (each room has its own texture)
+        if (roomId >= 0) {
+          const textureType = roomTextures[roomId].floorTexture;
+          const sprite = spriteManager.createFloorTextureSprite(i, j, textureType, tileSize);
+          if (sprite) {
+            mapContainer.addChild(sprite);
+          }
         }
       }
     }
@@ -382,6 +460,30 @@ async function startGame() {
     }
     
     healthPotions.push(potion);
+  }
+
+  // Place gems randomly on the map (3-5 gems per level for additional gold)
+  const numGems = Math.min(Math.floor(Math.random() * 3) + 3, remainingFloorTiles.length);
+  for (let i = 0; i < numGems; i++) {
+    const randomIndex = Math.floor(Math.random() * remainingFloorTiles.length);
+    const tile = remainingFloorTiles.splice(randomIndex, 1)[0];
+    const gemType = Math.floor(Math.random() * 3); // Random gem type (0-2)
+    
+    // Gems give more gold than regular drops
+    const gemGoldAmounts = [100, 200, 500]; // Diamond, Ruby, Emerald
+    const goldAmount = gemGoldAmounts[gemType];
+    
+    const gemSprite = spriteManager.createGemSprite(tile.x, tile.y, gemType, tileSize);
+    if (gemSprite) {
+      const gemItem = {
+        x: tile.x,
+        y: tile.y,
+        amount: goldAmount,
+        sprite: gemSprite
+      };
+      goldItems.push(gemItem);
+      mapContainer.addChild(gemSprite);
+    }
   }
 
   // Note: Finish tile will be placed when all enemies are defeated

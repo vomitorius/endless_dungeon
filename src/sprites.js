@@ -11,7 +11,20 @@ export const spriteCoords = {
     { x: 5, y: 1 },   // Sixth enemy type
   ],
   gold: { x: 0, y: 10 }, // Gold coin sprite
-  healthPotion: { x: 1, y: 10 }, // Health potion sprite (next to gold)
+  healthPotion: { x: 2, y: 10 }, // Health potion sprite (bottle)
+  gems: [
+    { x: 10, y: 10 }, // Diamond gem
+    { x: 11, y: 10 }, // Ruby gem
+    { x: 12, y: 10 }, // Emerald gem
+  ],
+  floorTextures: [
+    { x: 0, y: 6 },   // Floor texture variant 1
+    { x: 1, y: 6 },   // Floor texture variant 2
+    { x: 2, y: 6 },   // Floor texture variant 3
+    { x: 3, y: 6 },   // Floor texture variant 4
+    { x: 4, y: 6 },   // Floor texture variant 5
+    { x: 5, y: 6 },   // Floor texture variant 6
+  ],
 };
 
 // Texture management
@@ -87,6 +100,34 @@ export class SpriteManager {
   createHealthPotionSprite(gridX, gridY, tileSize) {
     const potionCoords = spriteCoords.healthPotion;
     const texture = this.createSpriteFromTilesheet(potionCoords.x, potionCoords.y);
+    if (!texture) return null;
+    
+    const sprite = new PIXI.Sprite(texture);
+    sprite.width = tileSize;
+    sprite.height = tileSize;
+    sprite.x = gridX * tileSize;
+    sprite.y = gridY * tileSize;
+    return sprite;
+  }
+
+  // Create gem sprite (for additional collectibles)
+  createGemSprite(gridX, gridY, gemType = 0, tileSize) {
+    const gemCoords = spriteCoords.gems[gemType] || spriteCoords.gems[0];
+    const texture = this.createSpriteFromTilesheet(gemCoords.x, gemCoords.y);
+    if (!texture) return null;
+    
+    const sprite = new PIXI.Sprite(texture);
+    sprite.width = tileSize;
+    sprite.height = tileSize;
+    sprite.x = gridX * tileSize;
+    sprite.y = gridY * tileSize;
+    return sprite;
+  }
+
+  // Create floor texture sprite
+  createFloorTextureSprite(gridX, gridY, textureType = 0, tileSize) {
+    const floorCoords = spriteCoords.floorTextures[textureType] || spriteCoords.floorTextures[0];
+    const texture = this.createSpriteFromTilesheet(floorCoords.x, floorCoords.y);
     if (!texture) return null;
     
     const sprite = new PIXI.Sprite(texture);
