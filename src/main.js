@@ -285,14 +285,37 @@ async function startGame() {
 
   let playerPlaced = false;
   
-  // Place walls and doors
+  // Place walls and doors with some variations
   for (let i = 0; i < dungeon.tiles.length; i++) {
     for (let j = 0; j < dungeon.tiles[i].length; j++) {
       const tile = dungeon.tiles[i][j].type;
-      if (tile === 'wall' || tile === 'door') {
+      if (tile === 'wall') {
+        // 20% chance to use a wall variation
+        if (Math.random() < 0.2) {
+          const variationType = Math.floor(Math.random() * 3);
+          const sprite = spriteManager.createWallVariationSprite(i, j, variationType, tileSize);
+          if (sprite) {
+            mapContainer.addChild(sprite);
+          }
+        } else {
+          const sprite = spriteManager.createSprite(tile, i, j, tileSize);
+          if (sprite) {
+            mapContainer.addChild(sprite);
+          }
+        }
+      } else if (tile === 'door') {
         const sprite = spriteManager.createSprite(tile, i, j, tileSize);
         if (sprite) {
           mapContainer.addChild(sprite);
+        }
+      } else if (tile === 'floor') {
+        // 10% chance to add floor decoration
+        if (Math.random() < 0.1) {
+          const decorationType = Math.floor(Math.random() * 5);
+          const sprite = spriteManager.createFloorDecorationSprite(i, j, decorationType, tileSize);
+          if (sprite) {
+            mapContainer.addChild(sprite);
+          }
         }
       }
     }
@@ -382,6 +405,30 @@ async function startGame() {
     }
     
     healthPotions.push(potion);
+  }
+
+  // Place gems randomly on the map (3-5 gems per level for additional gold)
+  const numGems = Math.min(Math.floor(Math.random() * 3) + 3, remainingFloorTiles.length);
+  for (let i = 0; i < numGems; i++) {
+    const randomIndex = Math.floor(Math.random() * remainingFloorTiles.length);
+    const tile = remainingFloorTiles.splice(randomIndex, 1)[0];
+    const gemType = Math.floor(Math.random() * 3); // Random gem type (0-2)
+    
+    // Gems give more gold than regular drops
+    const gemGoldAmounts = [100, 200, 500]; // Diamond, Ruby, Emerald
+    const goldAmount = gemGoldAmounts[gemType];
+    
+    const gemSprite = spriteManager.createGemSprite(tile.x, tile.y, gemType, tileSize);
+    if (gemSprite) {
+      const gemItem = {
+        x: tile.x,
+        y: tile.y,
+        amount: goldAmount,
+        sprite: gemSprite
+      };
+      goldItems.push(gemItem);
+      mapContainer.addChild(gemSprite);
+    }
   }
 
   // Note: Finish tile will be placed when all enemies are defeated
