@@ -7,57 +7,411 @@
   <meta name="author" content="vomitorius">
   <title>Endless Dungeon</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=MedievalSharp&display=swap" rel="stylesheet">
   <link rel="shortcut icon" href="/img/favicon.ico" type="image/x-icon">
   <style>
+    :root {
+      --dungeon-bg: #09070f;
+      --dungeon-highlight: #6f4122;
+      --dungeon-accent: #cfa767;
+      --dungeon-shadow: rgba(0, 0, 0, 0.85);
+      --parchment-top: #4b2d1a;
+      --parchment-bottom: #2b1a10;
+      --text-body: #f4e9c7;
+      --text-muted: #c0a47c;
+    }
+
     body {
       padding-top: 56px; /* Account for fixed navbar */
-      background-color: #2c2c2c;
+      background: radial-gradient(circle at 20% 20%, rgba(65, 38, 17, 0.45), transparent 55%),
+        radial-gradient(circle at 80% 25%, rgba(92, 53, 24, 0.35), transparent 60%),
+        linear-gradient(145deg, #060608 0%, #110c18 40%, #050307 100%);
+      color: var(--text-body);
+      font-family: 'Cinzel', serif;
+      letter-spacing: 0.02em;
       user-select: none; /* Prevent text selection on mobile */
       -webkit-user-select: none;
       touch-action: manipulation;
       overflow-x: hidden;
+      position: relative;
+      min-height: 100vh;
     }
-    
+
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      top: 120px;
+      width: 360px;
+      height: 360px;
+      background: radial-gradient(circle, rgba(255, 180, 92, 0.25) 0%, rgba(255, 160, 54, 0.08) 35%, transparent 70%);
+      filter: blur(1px);
+      opacity: 0.9;
+      pointer-events: none;
+      z-index: 0;
+      animation: torch-flicker 4s ease-in-out infinite;
+    }
+
+    body::before {
+      left: -120px;
+    }
+
+    body::after {
+      right: -120px;
+      animation-delay: 1.6s;
+    }
+
+    @keyframes torch-flicker {
+      0%,
+      100% {
+        transform: scale(1) translateY(0);
+        opacity: 0.8;
+      }
+      45% {
+        transform: scale(1.05) translateY(-3px);
+        opacity: 1;
+      }
+      70% {
+        transform: scale(0.96) translateY(2px);
+        opacity: 0.75;
+      }
+    }
+
+    .navbar {
+      background: linear-gradient(120deg, rgba(34, 21, 14, 0.95), rgba(15, 12, 18, 0.92));
+      border-bottom: 2px solid rgba(126, 80, 37, 0.9);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+      font-family: 'MedievalSharp', cursive;
+      text-shadow: 0 0 8px rgba(255, 176, 84, 0.25);
+    }
+
+    .navbar .container-fluid {
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .navbar-brand {
+      color: var(--text-body) !important;
+      letter-spacing: 0.08em;
+      font-size: 1.25rem;
+    }
+
+    .navbar small,
+    .nav-subtitle {
+      color: var(--text-muted);
+      font-family: 'Cinzel', serif;
+      text-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+    }
+
+    .nav-subtitle {
+      letter-spacing: 0.08em;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      opacity: 0.85;
+    }
+
+    .dungeon-wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 40px 28px 80px;
+      color: var(--text-body);
+    }
+
+    .dungeon-wrapper::before {
+      content: "";
+      position: absolute;
+      inset: 10px;
+      border: 1px solid rgba(203, 156, 102, 0.25);
+      border-radius: 24px;
+      background: linear-gradient(160deg, rgba(27, 20, 33, 0.96), rgba(17, 12, 21, 0.92));
+      box-shadow:
+        0 0 30px rgba(0, 0, 0, 0.85),
+        0 0 80px rgba(126, 80, 37, 0.35);
+      z-index: -2;
+    }
+
+    .dungeon-wrapper::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top left, rgba(255, 193, 110, 0.18), transparent 60%),
+        radial-gradient(circle at bottom right, rgba(102, 217, 252, 0.08), transparent 55%);
+      pointer-events: none;
+      border-radius: 32px;
+      z-index: -3;
+    }
+
+    .floating-runes {
+      position: absolute;
+      inset: 20px;
+      pointer-events: none;
+      z-index: -1;
+      opacity: 0.55;
+      filter: drop-shadow(0 0 12px rgba(255, 203, 139, 0.25));
+    }
+
+    .floating-runes span {
+      position: absolute;
+      font-family: 'MedievalSharp', cursive;
+      font-size: 1.6rem;
+      color: rgba(255, 214, 153, 0.45);
+      text-shadow:
+        0 0 12px rgba(255, 196, 128, 0.4),
+        0 0 24px rgba(255, 196, 128, 0.2);
+      animation: rune-float 14s ease-in-out infinite;
+    }
+
+    .floating-runes .rune-1 {
+      top: 12%;
+      left: 10%;
+      animation-delay: 0s;
+    }
+
+    .floating-runes .rune-2 {
+      top: 22%;
+      right: 8%;
+      animation-delay: 3s;
+    }
+
+    .floating-runes .rune-3 {
+      bottom: 18%;
+      left: 18%;
+      animation-delay: 6s;
+    }
+
+    .floating-runes .rune-4 {
+      bottom: 8%;
+      right: 16%;
+      animation-delay: 9s;
+    }
+
+    .floating-runes .rune-5 {
+      top: 45%;
+      left: 46%;
+      animation-delay: 12s;
+    }
+
+    @keyframes rune-float {
+      0%,
+      100% {
+        transform: translate3d(0, 0, 0) scale(0.9);
+        opacity: 0.35;
+      }
+      50% {
+        transform: translate3d(14px, -18px, 0) scale(1.25);
+        opacity: 0.8;
+      }
+    }
+
+    .dungeon-wrapper > .row {
+      position: relative;
+      z-index: 1;
+    }
+
+    .controls {
+      margin-bottom: 25px;
+      text-align: center;
+      position: relative;
+    }
+
+    .controls::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: -12px;
+      width: 160px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(207, 167, 103, 0.85), transparent);
+      transform: translateX(-50%);
+      box-shadow: 0 0 10px rgba(207, 167, 103, 0.6);
+    }
+
+    .btn-generate {
+      background: linear-gradient(160deg, #8b4513, #5c2f0d);
+      border: 1px solid rgba(207, 167, 103, 0.7);
+      color: var(--text-body);
+      font-size: 0.95rem;
+      padding: 10px 28px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      box-shadow:
+        0 0 12px rgba(207, 167, 103, 0.45),
+        inset 0 0 12px rgba(255, 200, 132, 0.25);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-generate::after {
+      content: "✦";
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1.15rem;
+      color: rgba(255, 231, 186, 0.9);
+      text-shadow: 0 0 12px rgba(255, 198, 135, 0.7);
+      animation: twinkle 2.8s ease-in-out infinite;
+    }
+
+    @keyframes twinkle {
+      0%,
+      100% {
+        opacity: 0.3;
+        transform: translateY(-50%) scale(0.85) rotate(0deg);
+      }
+      50% {
+        opacity: 1;
+        transform: translateY(-50%) scale(1.2) rotate(18deg);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+
+      body::before,
+      body::after,
+      .floating-runes span,
+      .btn-generate::after {
+        animation: none !important;
+      }
+
+      .floating-runes {
+        opacity: 0.35;
+      }
+    }
+
+    .btn-generate:hover {
+      background: linear-gradient(160deg, #a0522d, #6a3814);
+      border-color: rgba(255, 206, 143, 0.9);
+      color: #fff8e5;
+      box-shadow:
+        0 0 18px rgba(255, 198, 135, 0.6),
+        inset 0 0 16px rgba(255, 216, 165, 0.4);
+    }
+
     .game-container {
-      background-color: #3c3c3c;
-      border-radius: 8px;
-      padding: 15px;
-      margin: 10px 0;
+      background: linear-gradient(135deg, rgba(20, 17, 24, 0.92), rgba(14, 11, 18, 0.88));
+      border-radius: 16px;
+      padding: 18px;
+      margin: 20px auto 24px;
+      border: 1px solid rgba(207, 167, 103, 0.35);
+      box-shadow:
+        inset 0 0 24px rgba(0, 0, 0, 0.85),
+        0 0 32px rgba(0, 0, 0, 0.65),
+        0 0 48px rgba(139, 69, 19, 0.3);
+      position: relative;
     }
-    
+
+    .game-container::before,
+    .game-container::after {
+      content: "";
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      border: 2px solid rgba(207, 167, 103, 0.6);
+      border-radius: 50%;
+      box-shadow: 0 0 12px rgba(207, 167, 103, 0.6);
+      opacity: 0.65;
+    }
+
+    .game-container::before {
+      top: -12px;
+      left: -12px;
+    }
+
+    .game-container::after {
+      bottom: -12px;
+      right: -12px;
+    }
+
     #c {
-      border: 2px solid #555;
-      border-radius: 4px;
+      border: 3px solid rgba(207, 167, 103, 0.35);
+      border-radius: 12px;
       max-width: 100%;
       height: auto;
       display: block;
       margin: 0 auto;
       touch-action: none; /* Prevent scrolling on touch */
+      box-shadow:
+        inset 0 0 18px rgba(0, 0, 0, 0.85),
+        0 0 22px rgba(207, 167, 103, 0.2);
+      background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.02) 0 4px, transparent 4px 8px);
     }
-    
-    .controls {
-      margin-bottom: 15px;
-      text-align: center;
-    }
-    
-    .btn-generate {
-      background-color: #8B4513;
-      border-color: #8B4513;
-      color: white;
-      font-size: 0.9rem;
-      padding: 8px 16px;
-    }
-    
-    .btn-generate:hover {
-      background-color: #A0522D;
-      border-color: #A0522D;
-      color: white;
-    }
-    
+
     .instructions {
-      color: #ccc;
-      margin-top: 15px;
-      font-size: 0.85rem;
+      color: var(--text-body);
+      margin-top: 25px;
+      font-size: 0.9rem;
+      background: linear-gradient(180deg, rgba(95, 61, 33, 0.65), rgba(31, 20, 14, 0.9));
+      border: 1px solid rgba(207, 167, 103, 0.45);
+      border-radius: 18px;
+      padding: 20px 24px;
+      box-shadow:
+        inset 0 0 16px rgba(0, 0, 0, 0.7),
+        0 0 36px rgba(0, 0, 0, 0.6);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .instructions::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(0deg, rgba(255, 214, 151, 0.08), transparent 40%),
+        linear-gradient(90deg, rgba(255, 199, 135, 0.12), transparent 30%, transparent 70%, rgba(255, 199, 135, 0.12));
+      pointer-events: none;
+      mix-blend-mode: screen;
+    }
+
+    .instructions h5 {
+      font-family: 'MedievalSharp', cursive;
+      letter-spacing: 0.12em;
+      font-size: 1.15rem;
+      color: #ffe8ba;
+      text-transform: uppercase;
+      text-shadow:
+        0 0 14px rgba(255, 198, 135, 0.7),
+        0 0 8px rgba(0, 0, 0, 0.8);
+    }
+
+    .instructions ul {
+      list-style: none;
+      margin: 0;
+      padding-left: 0;
+    }
+
+    .instructions li {
+      position: relative;
+      padding-left: 28px;
+      margin-bottom: 10px;
+      color: rgba(255, 238, 201, 0.95);
+    }
+
+    .instructions li::before {
+      content: "✷";
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: rgba(255, 212, 153, 0.85);
+      text-shadow: 0 0 6px rgba(255, 212, 153, 0.65);
+    }
+
+    .instructions .keyword {
+      color: #ffe8ba;
+      font-weight: 600;
+      letter-spacing: 0.05em;
     }
 
     /* Virtual Gamepad Styles */
@@ -67,11 +421,14 @@
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(60, 60, 60, 0.9);
-      border-radius: 20px;
-      padding: 15px;
+      background: linear-gradient(160deg, rgba(28, 24, 34, 0.95), rgba(18, 15, 22, 0.92));
+      border: 1px solid rgba(207, 167, 103, 0.35);
+      border-radius: 22px;
+      padding: 18px;
       z-index: 1000;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      box-shadow:
+        0 12px 24px rgba(0, 0, 0, 0.7),
+        0 0 28px rgba(207, 167, 103, 0.25);
       align-items: center;
       gap: 20px;
     }
@@ -85,7 +442,7 @@
     }
 
     .sword-btn {
-      background: linear-gradient(145deg, #8B4513, #654321);
+      background: linear-gradient(145deg, #8b4513, #654321);
       border: none;
       border-radius: 50%;
       width: 60px;
@@ -100,18 +457,22 @@
       transition: all 0.1s;
       user-select: none;
       -webkit-tap-highlight-color: transparent;
+      box-shadow:
+        inset 0 0 10px rgba(0, 0, 0, 0.6),
+        0 6px 12px rgba(0, 0, 0, 0.6);
     }
 
-    .sword-btn:active, .sword-btn.active {
-      background: linear-gradient(145deg, #654321, #4A2C17);
+    .sword-btn:active,
+    .sword-btn.active {
+      background: linear-gradient(145deg, #654321, #4a2c17);
       transform: scale(0.95);
     }
 
     .dpad-btn {
-      background: linear-gradient(145deg, #555, #333);
-      border: none;
+      background: linear-gradient(145deg, #56442f, #271b15);
+      border: 1px solid rgba(207, 167, 103, 0.4);
       border-radius: 12px;
-      color: white;
+      color: #ffe7c2;
       font-size: 18px;
       font-weight: bold;
       display: flex;
@@ -121,10 +482,13 @@
       transition: all 0.1s;
       user-select: none;
       -webkit-tap-highlight-color: transparent;
+      box-shadow:
+        inset 0 0 8px rgba(0, 0, 0, 0.8),
+        0 4px 12px rgba(0, 0, 0, 0.6);
     }
 
     .dpad-btn:active {
-      background: linear-gradient(145deg, #333, #555);
+      background: linear-gradient(145deg, #302216, #4a3525);
       transform: scale(0.95);
     }
 
@@ -133,28 +497,44 @@
       cursor: not-allowed;
     }
 
-    .dpad-up { grid-column: 2; grid-row: 1; }
-    .dpad-left { grid-column: 1; grid-row: 2; }
-    .dpad-center { 
-      grid-column: 2; 
-      grid-row: 2; 
+    .dpad-up {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .dpad-left {
+      grid-column: 1;
+      grid-row: 2;
+    }
+
+    .dpad-center {
+      grid-column: 2;
+      grid-row: 2;
       background: rgba(139, 69, 19, 0.3);
       cursor: default;
     }
-    .dpad-right { grid-column: 3; grid-row: 2; }
-    .dpad-down { grid-column: 2; grid-row: 3; }
+
+    .dpad-right {
+      grid-column: 3;
+      grid-row: 2;
+    }
+
+    .dpad-down {
+      grid-column: 2;
+      grid-row: 3;
+    }
 
     /* Show gamepad on touch devices */
     @media (hover: none) and (pointer: coarse), (max-width: 768px) {
       .virtual-gamepad {
         display: flex !important;
       }
-      
+
       .instructions {
         padding-bottom: 140px; /* Make room for gamepad */
       }
     }
-    
+
     /* Force show on very small screens */
     @media (max-width: 480px) {
       .virtual-gamepad {
@@ -167,34 +547,44 @@
       body {
         padding-top: 50px;
       }
-      
+
+      .dungeon-wrapper {
+        padding: 36px 16px 120px;
+      }
+
+      .floating-runes {
+        inset: 12px;
+        opacity: 0.35;
+      }
+
       .navbar-brand {
         font-size: 1.1rem;
       }
-      
-      .navbar small {
+
+      .navbar small,
+      .nav-subtitle {
         font-size: 0.7rem;
       }
-      
+
       .game-container {
-        padding: 10px;
-        margin: 10px 5px;
+        padding: 12px;
+        margin: 20px 5px;
       }
-      
+
       .btn-generate {
         font-size: 0.8rem;
-        padding: 6px 12px;
+        padding: 8px 18px;
       }
-      
+
       .instructions h5 {
         font-size: 1rem;
       }
-      
+
       .instructions {
         font-size: 0.75rem;
         padding-bottom: 150px; /* Extra space for gamepad */
       }
-      
+
       /* Optimize canvas for mobile */
       #c {
         max-width: 95vw;
@@ -207,31 +597,31 @@
     /* Portrait mobile specific optimizations */
     @media (max-width: 480px) and (orientation: portrait) {
       .game-container {
-        padding: 5px;
-        margin: 5px 2px;
+        padding: 8px;
+        margin: 10px 2px 24px;
       }
-      
+
       #c {
         max-width: 98vw;
         max-height: 55vh;
       }
-      
+
       .dpad {
         grid-template-columns: repeat(3, 50px);
         grid-template-rows: repeat(3, 50px);
         gap: 8px;
       }
-      
+
       .dpad-btn {
         font-size: 16px;
         border-radius: 10px;
       }
-      
+
       .virtual-gamepad {
         bottom: 10px;
-        padding: 10px;
+        padding: 12px;
       }
-      
+
       .instructions {
         padding-bottom: 160px;
       }
@@ -242,27 +632,39 @@
         grid-template-columns: repeat(3, 50px);
         grid-template-rows: repeat(3, 50px);
       }
-      
+
       .dpad-btn {
         font-size: 16px;
       }
-      
+
       .virtual-gamepad {
         bottom: 15px;
         padding: 12px;
       }
+
+      .floating-runes {
+        display: none;
+      }
     }
   </style>
+
 </head>
 <body>
-  <nav class="navbar navbar-dark bg-dark fixed-top">
+  <nav class="navbar navbar-dark fixed-top">
     <div class="container-fluid">
       <a class="navbar-brand" href="#">🏰 Endless Dungeon</a>
-      <small class="text-muted">Use arrow keys (hold for smooth movement), click to move, or swipe • Reach the finish to win</small>
+      <small class="nav-subtitle">Move, fight, and survive the shifting halls to reach the exit</small>
     </div>
   </nav>
 
-  <div class="container-fluid">
+  <div class="container-fluid dungeon-wrapper">
+    <div class="floating-runes" aria-hidden="true">
+      <span class="rune-1">⚷</span>
+      <span class="rune-2">✶</span>
+      <span class="rune-3">⚔</span>
+      <span class="rune-4">✹</span>
+      <span class="rune-5">☽</span>
+    </div>
     <div class="row">
       <div class="col-12">
         <div class="controls">
@@ -276,15 +678,14 @@
         </div>
         
         <div class="instructions">
-          <h5>How to Play:</h5>
+          <h5>Dungeon Directives</h5>
           <ul>
-            <li>Use arrow keys (hold for smooth movement), click on tiles to pathfind, swipe gestures, or virtual gamepad to move your knight (🛡️)</li>
-            <li>Press SPACE or the sword button (⚔️) to attack enemies in adjacent tiles</li>
-            <li>Navigate through floors (dark areas) and doors</li>
-            <li>Avoid walls (brown blocks)</li>
-            <li>Defeat all enemies to reveal the finish tile (✨)</li>
-            <li>Reach the finish tile to win and generate a new dungeon</li>
-            <li>Click "Generate New Dungeon" to create a new challenge</li>
+            <li><span class="keyword">Movement:</span> Use arrow keys for smooth strides, click tiles to pathfind, swipe to dash, or wield the virtual gamepad to guide your knight (🛡️).</li>
+            <li><span class="keyword">Combat:</span> Strike with SPACE or tap the sword sigil (⚔️) to clash with foes lurking in adjacent tiles.</li>
+            <li><span class="keyword">Exploration:</span> Scout the torch-lit floors and doorways to uncover treasure, potions, and lurking enemies.</li>
+            <li><span class="keyword">Obstacles:</span> Stone walls and void chasms are impassable—chart alternate paths through the maze.</li>
+            <li><span class="keyword">Objective:</span> Defeat the guardians to reveal the shimmering exit glyph (✨) and claim victory.</li>
+            <li><span class="keyword">Replay:</span> Summon a fresh challenge anytime with the <em>Generate New Dungeon</em> relic.</li>
           </ul>
         </div>
       </div>
